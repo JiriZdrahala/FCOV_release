@@ -14,7 +14,7 @@ program rroa_td_num
    character(10) wexc_str,buf
    integer :: wst_i=0,iii
    double precision wst_w
-   integer nstates,nat,nstates2,ifile,argc,n3,nq,dnst,output_deriv
+   integer :: nstates,nat,nstates2,ifile,argc,n3,nq,dnst,doat=0,output_deriv
    integer i,ii,j,k,nexc,npx,steps,a,b
    integer,allocatable :: z(:),z_t(:),igns(:),nograds(:)
    double precision e0_gr,e,step,h_t,gamma,theta,rroa_inv(13),fwhm,e_tr,kbt,temp,w1_au,w3_au,wexc_au,dfac,max_t,sqrt_w
@@ -30,6 +30,7 @@ program rroa_td_num
    logical :: rroa_spr_do(ns0),spectrum_temp=.true.,use_gauss=.false.,derm=.false.
    logical :: usea=.true.,useac=.true.,useg=.true.,usegc=.true.,st=.true.,wrpol=.true.,wrpolq=.false.
    logical :: stateSwitchChec=.false.,wexc_adapt=.false.,isOrca=.false.,analy=.false.,gene=.false.,corren=.false.
+   logical :: primQ=.false.
    type(TD_coeff_arr),allocatable :: tdcs0(:),tdcs_t(:),tdcs(:,:)
    logical,allocatable :: ign_state(:)
    
@@ -105,7 +106,7 @@ program rroa_td_num
       q0=0d0
       v0=0d0
    else
-      call rd_td_new(77,s80,nstates,z,r0,nat,u0,v0,m0,q0,e0_gr,ens0,mult_tm,dnst)
+      call rd_td_new(77,s80,nstates,z,r0,nat,u0,v0,m0,q0,e0_gr,ens0,mult_tm,dnst,primq)
    end if
    
    
@@ -128,6 +129,10 @@ program rroa_td_num
          continue
       elseif(index(s80,'analyitical')>0)then
          analy=.true.
+      elseif(index(s80,'primq')>0)then
+         primq=.true.
+      elseif(index(s80,'doat=')>0)then
+         read(s80(6:),*)doat
       elseif(index(s80,'nograd')>0)then
          if(index(s80,'=')>0)then
             strs=splitString(s80(8:),80,',')
@@ -191,6 +196,7 @@ program rroa_td_num
       ens0(wst_i)=1d7/(1d7/(ens0(wst_i)*au_2_cm)+wst_w)*cm_2_au
    end if
    n3=3*nat
+   if(doat==0)doat=nat
    call GET_COMMAND_ARGUMENT(2,s80)
    ens0=ens0
    fwhm=5
@@ -290,7 +296,7 @@ program rroa_td_num
       call rd_casscf_orca(78,filename,dnst,nat,ens_t,r_t,z_t,u_t,m_t)
       nstates2=dnst
    else
-      call rd_td_new(78,filename,nstates2,z_t,r_t,nat,u_t,v_t,m_t,q_t,e,ens_t,mult_tm,dnst)
+      call rd_td_new(78,filename,nstates2,z_t,r_t,nat,u_t,v_t,m_t,q_t,e,ens_t,mult_tm,dnst,primq)
    end if
    if(wst_i/=0)then
       ens_t(wst_i)=1d7/(1d7/(ens_t(wst_i)*au_2_cm)+wst_w)*cm_2_au
@@ -548,7 +554,7 @@ program rroa_td_num
    !$OMP PRIVATE(polars_buf,polars_buf2) &
    !$OMP PRIVATE(i,j,k,sqrt_w) &
    !$OMP SHARED(n3,step,nq,ifile,u,m,q,ens,nstates,wexc,nexc,gamma,wg,polars,d_pol,wexc_adapt) &
-   !$OMP SHARED(st,pols0,ens0,u0,m0,v0,q0,ign_state,grad,smat,cen,overs,d2_pol,combs)
+   !$OMP SHARED(st,pols0,ens0,u0,m0,v0,q0,ign_state,grad,smat,cen,overs,d2_pol,combs,doat)
    allocate(polars_buf(nexc,ifile),polars_buf2(nexc))
    
    
@@ -581,21 +587,21 @@ program rroa_td_num
       if(cen)then
          !$OMP DO
          do i = 1,nq
-            d_pol(:,:,i)=CenDiff_pols(polars(:,:,i),n3,nexc,step)
+            d_pol(:,:,i)=CenDiff_pols(polars(:,:,i),n3,nexc,step,doat)
          end do
          !$OMP END DO
          
          if(overs)then
             !$OMP DO
             do i = 1,nq
-               d2_pol(:,:,i)=CenDiff_pols(polars(:,:,i),n3,nexc,step)
+               d2_pol(:,:,i)=CenDiff_pols(polars(:,:,i),n3,nexc,step,doat)
             end do
             !$OMP END DO
          end if
       else 
          !$OMP DO
          do i = 1,nq
-            d_pol(:,:,i)=Diff_pols(pols0,polars(:,:,i),n3,nexc,step)
+            d_pol(:,:,i)=Diff_pols(pols0,polars(:,:,i),n3,nexc,step,doat)
          end do
          !$OMP END DO
       end if
@@ -1105,14 +1111,14 @@ program rroa_td_num
       
    end function ElPoldo
    
-   function CenDiff_pols(pols,n3,nexc,step)result(dpol)
-      integer n3,nexc,iexc,a,b,c,i
+   function CenDiff_pols(pols,n3,nexc,step,doat)result(dpol)
+      integer n3,nexc,iexc,a,b,c,i,doat
       double precision :: step
       type(Polar) pols(nexc,2*n3),dpol(nexc,n3)
       
       
       do iexc=1,nexc
-         do i = 1,n3
+         do i = 1,doat*3
             do a = 1,3
                do b = 1,3
                   dpol(iexc,i)%ap(a,b)=cendiff(pols(iexc,i)%ap(a,b),pols(iexc,i+n3)%ap(a,b),step)
@@ -1121,6 +1127,19 @@ program rroa_td_num
                   do c = 1,3
                      dpol(iexc,i)%A(a,b,c)=cendiff(pols(iexc,i)%A(a,b,c),pols(iexc,i+n3)%A(a,b,c),step)
                      dpol(iexc,i)%Ac(a,b,c)=cendiff(pols(iexc,i)%Ac(a,b,c),pols(iexc,i+n3)%Ac(a,b,c),step)
+                  end do
+               end do
+            end do
+         end do
+         do i = 3*doat+1,n3
+            do a = 1,3
+               do b = 1,3
+                  dpol(iexc,i)%ap(a,b)=0d0
+                  dpol(iexc,i)%G(a,b)=0d0
+                  dpol(iexc,i)%Gc(a,b)=0d0
+                  do c = 1,3
+                     dpol(iexc,i)%A(a,b,c)=0d0
+                     dpol(iexc,i)%Ac(a,b,c)=0d0
                   end do
                end do
             end do
@@ -1178,14 +1197,14 @@ program rroa_td_num
       end do
    end function CenDiff11_pols
    
-   function Diff_pols(pols0,pols,n3,nexc,step)result(dpol)
-      integer n3,nexc,iexc,a,b,c,i
+   function Diff_pols(pols0,pols,n3,nexc,step,doat)result(dpol)
+      integer n3,nexc,iexc,a,b,c,i,doat
       double precision :: step
       type(Polar) pols(nexc,n3),pols0(nexc),dpol(nexc,n3)
       
       
       do iexc=1,nexc
-         do i = 1,n3
+         do i = 1,doat*3
             do a = 1,3
                do b = 1,3
                   dpol(iexc,i)%ap(a,b)=diff(pols0(iexc)%ap(a,b),pols(iexc,i)%ap(a,b),step)
@@ -1194,6 +1213,19 @@ program rroa_td_num
                   do c = 1,3
                      dpol(iexc,i)%A(a,b,c)=diff(pols0(iexc)%A(a,b,c),pols(iexc,i)%A(a,b,c),step)
                      dpol(iexc,i)%Ac(a,b,c)=diff(pols0(iexc)%Ac(a,b,c),pols(iexc,i)%Ac(a,b,c),step)
+                  end do
+               end do
+            end do
+         end do
+         do i = 3*doat+1,n3
+            do a = 1,3
+               do b = 1,3
+                  dpol(iexc,i)%ap(a,b)=0d0
+                  dpol(iexc,i)%G(a,b)=0d0
+                  dpol(iexc,i)%Gc(a,b)=0d0
+                  do c = 1,3
+                     dpol(iexc,i)%A(a,b,c)=0d0
+                     dpol(iexc,i)%Ac(a,b,c)=0d0
                   end do
                end do
             end do

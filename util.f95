@@ -964,6 +964,7 @@ module util
       allocate(ALPHA(N,3,3),A(N,3,3,3),G(N,3,3))
       ic=0
       CALL READTEN_ttt(fn,N,NAT,ALPHA,G,A,ic)
+      call Prim2TrA(N,A)
       allocate(ALPHAi(N,3,3),Ai(N,3,3,3),Gi(N,3,3))
       ic=3
       CALL READTEN_ttt(fn,N,NAT,ALPHAi,Gi,Ai,ic)
@@ -971,6 +972,8 @@ module util
          Alphai=0d0
          Ai=0d0
          gi=0d0
+      else
+         call Prim2TrA(N,Ai)
       end if
       if(wexc==0d0)then !static limit
          wexc2=-1 
@@ -1005,6 +1008,25 @@ module util
       
       deallocate(ALPHA,A,G,ALPHAi,Ai,Gi)
    end subroutine ReadFilettt
+   
+   subroutine Prim2TrA(nq,Aten)
+      integer nq,i,a,b,c
+      double precision,intent(inout) :: Aten(nq,3,3,3)
+      double precision Abuf(3,3,3),trace_a
+      
+      do i = 1,nq
+         Abuf=0d0
+         do a = 1,3
+            trace_a=Aten(i,a,1,1)+Aten(i,a,2,2)+Aten(i,a,3,3)
+            do b = 1,3
+               do c = 1,3
+                  Abuf(a,b,c)=0.5d0*(3*Aten(i,a,b,c)-trace_a*KD(b,c))
+               end do
+            end do
+         end do
+         Aten(i,:,:,:)=Abuf
+      end do
+   end subroutine Prim2TrA
    
    SUBROUTINE READTEN_ttt(fn,N,NAT,P,G,A,ic)
       IMPLICIT INTEGER*4 (I-N)
@@ -1644,7 +1666,7 @@ module util
     end subroutine rd_casscf_orca
    
    
-   subroutine rd_td_new(unitt,filename,nstates,z,r,nat,u,v,m,q,e_gr,ens,mult_tm,dnst)
+   subroutine rd_td_new(unitt,filename,nstates,z,r,nat,u,v,m,q,e_gr,ens,mult_tm,dnst,primq)
       character(*) filename
       character(80),allocatable :: splitt(:)
       integer unitt,nstates,nat,i,ii,sizee,j,k,l,idx,istate,dnst,nstates_r,td,bufi
@@ -1654,6 +1676,7 @@ module util
       double precision,allocatable :: u(:,:),v(:,:),m(:,:),q(:,:,:)
       double precision,allocatable :: r(:),r_h(:),ens(:),ens_h(:)
       double precision bufr
+      logical primq
       
       integer tdc_cur_n,orb_gr_idx,orb_ex_idx,tdcs_n,n,num
       integer,allocatable :: order(:)
@@ -1796,7 +1819,11 @@ module util
                qq(2)=qqq(4)
                qq(3)=qqq(5)
                qq(5)=qqq(6)
-               q(:,:,i)=TracelessQ(qq)
+               if(primq)then
+                  q(:,:,i)=PrimitiveQ(qq)
+               else
+                  q(:,:,i)=TracelessQ(qq)
+               end if
             end do
             goto 60
          end if
@@ -2952,6 +2979,24 @@ module util
       close(unitt)
       write(output_unit,*)'Read: '//TR(namee)
    end subroutine ReadTen
+   
+   function PrimitiveQ(q_6)result(q)
+      double precision q_6(6),q(3,3)
+      !1  2  3  4  5  6
+      !xx xy xz yy yz zz
+      q(1,1)=q_6(1)
+      q(2,2)=q_6(4)
+      q(3,3)=q_6(6)
+      
+      q(1,2)=q_6(2)
+      q(2,1)=q(1,2)
+      
+      q(1,3)=q_6(3)
+      q(3,1)=q(1,3)
+      
+      q(2,3)=q_6(5)
+      q(3,2)=q(2,3)
+   end function PrimitiveQ
    
    function TracelessQ(q_6)result(q_tr)
       double precision q_6(6),q_tr(3,3)

@@ -21,6 +21,12 @@ program addpol
    logical do_conjg(Polars_max),mult_i(Polars_max)
    logical :: output_qttt=.false.,output_ttt=.false.
    logical :: output_polars_c=.false.,output_polars_q=.false.
+   logical :: dummy=.false.
+   
+   
+   if(dummy)then
+      call printA(sum_ap)
+   end if
    
    do_conjg=.false.
    mult_i=.false.
@@ -37,8 +43,10 @@ program addpol
    call to_lower(s80_l)
    if(index(s80_l,'qttt')>0)then
       output_qttt=.true.
+      write(output_unit,*)'Warning: cannot turn A to primitive quadrupole form'
    elseif(index(s80_l,'ttt')>0)then
       output_ttt=.true.
+      write(output_unit,*)'Warning: cannot turn A to primitive quadrupole form'
    elseif(index(s80_l,'polq')>0)then
       output_polars_q=.true.
    elseif(index(s80_l,'polc')>0)then
@@ -240,6 +248,21 @@ program addpol
       end if
       
    end subroutine writePol
+   
+   subroutine printA(A)
+      double complex A(3,3,3)
+      integer i
+      character(1) axes(3)
+      axes=['X','Y','Z']
+      
+      do i = 1,3
+         write(output_unit,*)'i','j',axes(i)
+         write(output_unit,*)realpart(A(:,1,i))
+         write(output_unit,*)realpart(A(:,2,i))
+         write(output_unit,*)realpart(A(:,3,i))
+      end do
+            
+   end subroutine printA
    
    function readPol(fn,ft,wexc)result(polres)
       character(*) fn
