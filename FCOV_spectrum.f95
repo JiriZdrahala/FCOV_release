@@ -394,10 +394,10 @@ program FCOV_spectrum
                   if(.not.isfilettt)then
                      !stop 3
                      !open(77,file=s80_c(idx_eq:),status='old',err=555)
-                     call Readfileqttt('FILE.Q.TTT',polars_fileqttt,.false.,E,nq_fileqttt,wexc_tmp)
+                     call Readfileqttt('FILE.Q.TTT',polars_fileqttt,.false.,E,nq_fileqttt,wexc_tmp,.true.)
                      n3=nq_fileqttt+6
                   else
-                     call ReadFilettt(s80_c(idx_eq:),polars_fileqttt,n3,wexc_tmp)
+                     call ReadFilettt(s80_c(idx_eq:),polars_fileqttt,n3,wexc_tmp,.true.)
                      nq_fileqttt=n3-6
                   end if
                   fileqttt_c=fileqttt_c+1

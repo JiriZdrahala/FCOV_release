@@ -94,9 +94,7 @@ if [[ "$stuff" != *"j"* ]] ; then
 	gfortran -w ${compstr} ${ompstr} -cpp $OUTDIR/constants.o $OUTDIR/strings.o $OUTDIR/util.o $OUTDIR/wrram.o $DIR/rroa_td_num.f95 -o $OUTDIR/rroa_td_num
 	gfortran -w ${compstr} -cpp $OUTDIR/constants.o $OUTDIR/strings.o $DIR/gettms.f95 -o $OUTDIR/gettms
 	gfortran -w ${compstr} -cpp $OUTDIR/constants.o $OUTDIR/strings.o $OUTDIR/util.o $DIR/elpol.f95 -o $OUTDIR/elpol
-	gfortran -w ${compstr} -cpp $OUTDIR/constants.o $OUTDIR/util.o $OUTDIR/strings.o $DIR/elvib_harmonic01.f95 -o $OUTDIR/elvib_harmonic
 	gfortran -w ${compstr} -cpp $OUTDIR/constants.o $OUTDIR/util.o $OUTDIR/strings.o $DIR/addpol.f95 -o $OUTDIR/addpol
-	gfortran -w ${compstr} -cpp $OUTDIR/util.o $OUTDIR/strings.o $DIR/permute_ttt.f95 -o $OUTDIR/permute_ttt
 fi
 
 gcc -c ${compstr} $DIR/cpu.c -o $OUTDIR/cpu.o

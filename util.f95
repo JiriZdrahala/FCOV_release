@@ -941,10 +941,11 @@ module util
       flush(unitt)
    end subroutine WriteTenPretty
    
-   subroutine ReadFilettt(fn,polars,n,wexc)
+   subroutine ReadFilettt(fn,polars,n,wexc,q2tr)
       character(*) fn
       character(80) s80
       integer nat,n,i,aa,bb,ic,cc
+      logical q2tr
       type(Polar),allocatable :: polars(:)
       double precision,allocatable :: ALPHA(:,:,:),G(:,:,:),A(:,:,:,:)
       double precision,allocatable :: ALPHAi(:,:,:),Gi(:,:,:),Ai(:,:,:,:)
@@ -964,7 +965,7 @@ module util
       allocate(ALPHA(N,3,3),A(N,3,3,3),G(N,3,3))
       ic=0
       CALL READTEN_ttt(fn,N,NAT,ALPHA,G,A,ic)
-      call Prim2TrA(N,A)
+      if(q2tr)call Prim2TrA(N,A)
       allocate(ALPHAi(N,3,3),Ai(N,3,3,3),Gi(N,3,3))
       ic=3
       CALL READTEN_ttt(fn,N,NAT,ALPHAi,Gi,Ai,ic)
@@ -973,7 +974,7 @@ module util
          Ai=0d0
          gi=0d0
       else
-         call Prim2TrA(N,Ai)
+         if(q2tr)call Prim2TrA(N,Ai)
       end if
       if(wexc==0d0)then !static limit
          wexc2=-1 
@@ -1240,10 +1241,10 @@ module util
       RETURN
    END
    
-   subroutine Readfileqttt(fn,polars,velocity,E,nq,wexc)
+   subroutine Readfileqttt(fn,polars,velocity,E,nq,wexc,q2tr)
       integer nq,unitt,im
       integer i,ii,j,idx,aa,bb,K
-      logical velocity
+      logical velocity,q2tr
       character(*) fn
       type(Polar),allocatable :: polars(:)
       double precision,allocatable :: E(:)
@@ -1252,6 +1253,10 @@ module util
       double precision A(3,3,3),Ai(3,3,3),wexc
       double precision :: alpha_vel(3,3),alpha_veli(3,3)
       
+      if(q2tr)then
+         write(output_unit,*)'q2tr not implemented in Readfileqttt'
+         stop 555
+      end if
       unitt=22
       open(unitt,file=fn,status='old')
       read(unitt,*)

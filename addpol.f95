@@ -6,7 +6,7 @@ program addpol
    use strings
    implicit none
    
-   integer argc,i,n3,n,polars_n,ii,j,ix,a,b,c,d
+   integer argc,i,n3,n,polars_n,ii,j,ix,a,b,c,d,endd,st
    character(500) s500,filepol
    character(11) ft1,ft2,cur_sign
    character(80) s80,s80_l
@@ -51,6 +51,30 @@ program addpol
       output_polars_q=.true.
    elseif(index(s80_l,'polc')>0)then
       output_polars_c=.true.
+   elseif(index(s80_l,'zero')>0)then
+      write(output_unit,*)'Setting polarizabilities to 0 in files'
+      call GET_COMMAND_ARGUMENT(2,s80)
+      read(s80,*)endd
+      write(output_unit,*)'Starting with atom: ',endd
+      endd=endd*3
+      
+      do i = 3,argc
+         call GET_COMMAND_ARGUMENT(i,filepol)
+         polars_cur=readPol(filepol,ft1,wexc,.false.)
+         if(TR(ft1)/='FILE.TTT')then
+            write(output_unit,*)'Zeroing only implemented for FILE.TTT'
+            stop 66
+         end if
+         
+         n3=size(polars_cur,dim=1)
+         do j = endd+1,n3
+            call ZeroPol(polars_cur(j))
+         end do
+         call writepol(polars_cur,n3,ft1,wexc)
+         deallocate(polars_cur)
+      end do
+      
+      return
    end if
    
    polars_n=0
@@ -70,7 +94,7 @@ program addpol
       read(cur_sign,*)signs(i/2)
       
       call GET_COMMAND_ARGUMENT(i+1,filepol)
-      polars_cur=readPol(filepol,ft1,wexc)
+      polars_cur=readPol(filepol,ft1,wexc,.true.)
       n=size(polars_cur,dim=1)
       if(.not.allocated(polars))then
          allocate(polars(n,polars_max),wexcs(polars_max))
@@ -178,6 +202,23 @@ program addpol
    deallocate(Polars,polarsres)
    contains
    
+   subroutine ZeroPol(pol)
+      integer a,b,c
+      type(Polar) pol
+      
+      do a = 1,3
+         do b = 1,3
+            pol%ap(a,b)=0d0
+            pol%G(a,b)=0d0
+            pol%Gc(a,b)=0d0
+            do c = 1,3
+               pol%A(a,b,c)=0d0
+               pol%Ac(a,b,c)=0d0
+            end do
+         end do
+      end do
+   end subroutine ZeroPol
+   
    subroutine ConjPol(pol)
       integer a,b,c
       type(Polar) pol
@@ -214,7 +255,7 @@ program addpol
    
    subroutine writePol(pol,n,ft,wexc)
       character(*) ft
-      integer n,nq,n3,iz
+      integer n,nq,n3,iz,i
       type(Polar) pol(n)
       double precision :: wg_fake(n),wexc
       double precision,allocatable :: wg(:),smat(:,:),r(:)
@@ -264,25 +305,25 @@ program addpol
             
    end subroutine printA
    
-   function readPol(fn,ft,wexc)result(polres)
+   function readPol(fn,ft,wexc,q2tr)result(polres)
       character(*) fn
       type(Polar),allocatable :: polres(:),polbuf(:)
       character(11) ft
       double precision wexc,e00
       double precision,allocatable :: wg(:),smat(:,:)
       integer n
-      logical isNM
+      logical isNM,q2tr
       
       ft=filetype(fn)
       if(TR(ft)=='FILE.TTT')then
-         call ReadFilettt(fn,polres,n,wexc)
+         call ReadFilettt(fn,polres,n,wexc,q2tr)
          isNM=.false.
          if(output_qttt.or.output_polars_q)then
             call Transform2NM(polres,n,.true.)
          end if
       elseif(TR(ft)=='FILE.Q.TTT')then
          wexc=0d0
-         call Readfileqttt(fn,polres,.false.,wg,n,wexc)
+         call Readfileqttt(fn,polres,.false.,wg,n,wexc,q2tr)
          isNM=.true.
          if(output_ttt .or. output_polars_c)then
             call Transform2Cart(polres,n,.false.)
