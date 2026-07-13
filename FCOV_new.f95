@@ -9,6 +9,13 @@ module stuff
    private nck_arr_allocated
    private nck_arr
    
+   type TMS
+      double precision :: u(3),m(3),q(3,3) !TDM
+      double precision,allocatable :: du(:,:),dm(:,:),dq(:,:,:) !1st derivative TDM
+      double precision,allocatable :: du2(:,:,:),dm2(:,:,:),dq2(:,:,:,:) !2nd
+      double precision,allocatable :: du3(:,:,:,:),dm3(:,:,:,:),dq3(:,:,:,:) !3rd
+   end type TMS
+   
    contains
    
    
@@ -3034,11 +3041,6 @@ module RROA_TD
       !TODO
    end type RROA_Options_TD
    
-   type TMS
-      double precision :: u(3),m(3),q(3,3)
-      double precision,allocatable :: du(:,:),dm(:,:),dq(:,:,:)
-      double precision,allocatable :: du2(:,:,:),dm2(:,:,:),dq2(:,:,:,:)
-   end type TMS
    
    type TD_SplitP_Mats_T1T1 !Usable for alpha, G and Gc ROA tensors
       double complex :: a_eta(3),b_eta(3)
@@ -6174,6 +6176,491 @@ module RROA_TD
    end function Make_x0_matmul
    
 end module RROA_TD
+
+module OPS_TD
+   use constants
+   use iso_fortran_env
+   use stuff
+   use strings
+#ifdef _OPENMP
+   use omp_lib
+#endif
+   use FFT
+
+   integer :: z_lwork = -2
+   integer :: d_lwork = -2
+   double precision :: t_off
+   double precision,parameter :: t_off_fac=0.1d0
+   
+   type TD_OPA_T1T1
+      double complex :: ma1_eta(3),mb1_eta(3),mb1_zeta_p_ma1(3)
+      double complex :: eta_ma2_eta(3),eta_mb2_eta(3)
+      double complex :: ma2_zeta_f(3),mb2_zeta_f(3)
+      double complex :: eta_ma2_zeta_p_mb1(3),eta_mb2_zeta_p_ma1(3)
+      double complex :: eta_ma2_zeta_p_mb2_eta(3),trace_ma2_zeta_p_mb2_zeta_p(3)
+   end type TD_OPA_T1T1
+   
+   type TD_OPA_T2T2
+      double complex :: ma1_eta(3,3),mb1_eta(3,3),mb1_zeta_p_ma1(3,3)
+      double complex :: eta_ma2_eta(3,3),eta_mb2_eta(3,3)
+      double complex :: ma2_zeta_f(3,3),mb2_zeta_f(3,3)
+      double complex :: eta_ma2_zeta_p_mb1(3,3),eta_mb2_zeta_p_ma1(3,3)
+      double complex :: eta_ma2_zeta_p_mb2_eta(3,3),trace_ma2_zeta_p_mb2_zeta_p(3,3)
+   end type TD_OPA_T2T2
+   
+   function Calc_OPA(CD,temp,nq,tmss,J,K,wg,we,fc,ht,ht2,ht3,gamma,theta,wmin,wmax,w_points,w_units,dofft,N_points,t_max)result(spr)
+      integer nq,n_points,w_points
+      integer(int64) points_c
+      logical CD,fc,ht,ht2,ht3,dofft
+      type(TMS) tmss
+      double precision gamma,theta,wmin,wmax,t_max,J(nq,nq),K(nq),wg(nq),we(nq),temp
+      double precision,allocatable :: spr(:,:)
+      character(2) w_units
+      double complex,allocatable :: test_mat(:,:),X_abs(:),X_CD(:)
+      
+      allocate(spr(w_points,2))
+      
+      allocate(test_mat(nq,nq))
+      z_lwork=INV_C_lapack_getLWork(test_mat,nq)
+      deallocate(test_mat)
+      
+      dt=t_max/dble(points_c)
+      t_off=t_off_fac !GLOBAL
+      points_c=2_8**n_points
+      
+      call Make_corrf_OPS(nq,tmss,fc,ht,ht2,ht3,points_c,t_max,dt,X)
+      if(dofft)then
+      
+      else
+      
+      end if
+      
+   end function Calc_OPA
+   
+   function zd_dot(nq,u,v)result(res)
+      integer,intent(in) :: nq
+      integer i
+      double complex,intent(in) :: u(nq)
+      double precision,intent(in) :: v(nq)
+      double complex res
+      
+      res=0d0
+      !$OMP SIMD PRIVATE(i) REDUCTION(+:res)
+      do i = 1,nq
+         res=res+u(i)*v(i)
+      end do
+   end function zd_dot
+   
+   function dzd_vmv(nq,u,v,w)result(res)
+      integer,intent(in) :: nq
+      integer :: i,j
+      double complex,intent(in) :: v(nq,nq)
+      double precision,intent(in) :: u(nq),w(nq)
+      double complex res,buf
+      
+      res=0d0
+      do i = 1,nq
+         buf=0d0
+         !$OMP SIMD PRIVATE(j) REDUCTION(+:buf)
+         do j = 1,nq
+            buf=buf+u(j)*v(j,i)
+         end do
+         !$OMP END SIMD
+         res=res+buf*w(i)
+      end do
+   end function dzd_vmv
+   
+   function zdz_vmv(nq,u,v,w)result(res)
+      integer,intent(in) :: nq
+      integer :: i,j
+      double precision,intent(in) :: v(nq,nq)
+      double complex,intent(in) :: u(nq),w(nq)
+      double complex res,buf
+      
+      res=0d0
+      do i = 1,nq
+         buf=0d0
+         !$OMP SIMD PRIVATE(j) REDUCTION(+:buf)
+         do j = 1,nq
+            buf=buf+u(j)*v(j,i)
+         end do
+         !$OMP END SIMD
+         res=res+buf*w(i)
+      end do
+   end function zdz_vmv
+   
+   function dz_frob_sym(nq,u,v)result(res)
+      integer,intent(in) :: nq
+      double precision,intent(in) :: u(nq,nq)
+      double complex,intent(in) :: v(nq,nq)
+      double complex res,buf
+      
+      res=0d0
+      do i = 1,nq
+         res=res+u(i,i)*v(i,i)
+         buf=0d0
+         !$OMP SIMD PRIVATE(j) REDUCTION(+:buf)
+         do j = i+1,nq
+            buf=buf+2*u(j,i)*v(j,i)
+         end do
+         !$OMP END SIMD
+         res=res+buf
+      end do
+   end function dz_frob_sym
+   
+   function ThatTrace(nq,ma2,zeta_p,mb2)result(res)
+      integer,intent(in) :: nq
+      double precision,intent(in) :: ma2(nq,nq),mb2(nq,nq)
+      double complex,intent(in) :: zeta_p(nq,nq)
+      double complex res,mat(nq,nq)
+      
+      res=0d0
+      
+      mat=matmul(zeta_p,mb2)
+      mat=matmul(ma2,mat)
+      do i = 1,nq
+         do j = 1,nq
+            res=res+mat(i,j)*zeta_p(j,i)
+         end do
+      end do
+   end function ThatTrace
+   
+   subroutine MakeMatrices_OPS(nq,tmss,cd,abs_mag,abs_quad,ht2,eta,zeta,zeta_p,m_abs_u,m_abs_m,m_abs_q,m_cd)
+      integer a
+      type(TMS),intent(in) :: tmss
+      logical,intent(in) :: ht2,abs_mag,cd,abs_quad
+      type(TD_OPA_T1T1),intent(inout) :: m_abs_u,m_abs_m,m_cd
+      type(TD_OPA_T2T2),intent(inout) :: m_abs_q
+      double complex :: eta_mb2(nq),eta_ma2(nq)
+      
+      do a = 1,3
+         m_abs_u%ma1_eta(a)=zd_dot(nq,eta,tmss%du(:,a))
+         m_abs_u%mb1_eta(a)=m_abs_u%ma1_eta(a)
+         m_abs_u%mb1_zeta_p_ma1(a)=dzd_vmv(nq,tmss%du(:,a),zeta_p,tmss%du(:,a))
+         if(cd)then
+            m_cd%ma1_eta(a)=m_abs_u%ma1_eta(a)
+            m_cd%mb1_eta(a)=zd_dot(nq,eta,tmss%dm(:,a))
+            m_cd%mb1_zeta_p_ma1(a)=dzd_vmv(nq,tmss%dm(:,a),zeta_p,tmss%du(:,a))
+         end if
+         
+         if(abs_mag)then
+            m_abs_m%ma1_eta(a)=zd_dot(nq,eta,tmss%dm(:,a))
+            m_abs_m%mb1_eta(a)=m_abs_m%ma1_eta(a)
+            m_abs_m%mb1_zeta_p_ma1(a)=dzd_vmv(nq,tmss%dm(:,a),zeta_p,tmss%dm(:,a))
+         end if
+         
+         if(abs_quad)then
+            do b = 1,3
+               m_abs_q%ma1_eta(a,b)=zd_dot(nq,eta,tmss%dq(:,a,b))
+               m_abs_q%mb1_eta(a,b)=m_abs_q%ma1_eta(a,b)
+               m_abs_q%mb1_zeta_p_ma1(a,b)=dzd_vmv(nq,tmss%dq(:,a,b),zeta_p,tmss%dq(:,a,b))
+               if(.not.ht2)cycle
+               m_abs_q%ma2_zeta_f(a,b)=dz_frob_sym(nq,tmss%dq2(:,:,a,b),zeta)
+               eta_ma2=matmul(eta,tmss%dq2(:,:,a,b))
+               eta_mb2=eta_ma2
+               m_abs_q%eta_ma2_eta(a,b)=DOT_PRODUCT(eta_ma2,eta)
+               m_abs_q%eta_mb2_eta(a,b)=m_abs_q%eta_ma2_eta(a,b)
+               m_abs_q%eta_ma2_zeta_p_mb1(a,b)=DOT_PRODUCT(eta_ma2,matmul(zeta_p,tmss%dq(:,a,b)))
+               m_abs_q%eta_mb2_zeta_p_ma1(a,b)=DOT_PRODUCT(eta_mb2,matmul(zeta_p,tmss%dq(:,a,b)))
+               m_abs_q%eta_ma2_zeta_p_mb2_eta(a,b)=DOT_PRODUCT(eta_ma2,matmul(zeta_p,matmul(tmss%dq2(:,:,a,b),eta)))
+               m_abs_q%trace_ma2_zeta_p_mb2_zeta_p(a,b)=ThatTrace(nq,tmss%dq2(:,:,a,b),zeta_p,tmss%dq2(:,:,a,b))
+            end do
+         end if
+         
+         
+         if(.not.ht2)cycle
+         m_abs_u%ma2_zeta_f(a)=dz_frob_sym(nq,tmss%du2(:,:,a),zeta)
+         eta_ma2=matmul(eta,tmss%du2(:,:,a))
+         eta_mb2=eta_ma2
+         m_abs_u%eta_ma2_eta(a)=DOT_PRODUCT(eta_ma2,eta)
+         m_abs_u%eta_mb2_eta(a)=m_abs_u%eta_ma2_eta(a)
+         m_abs_u%eta_ma2_zeta_p_mb1(a)=DOT_PRODUCT(eta_ma2,matmul(zeta_p,tmss%du(:,a)))
+         m_abs_u%eta_mb2_zeta_p_ma1(a)=DOT_PRODUCT(eta_mb2,matmul(zeta_p,tmss%du(:,a)))
+         m_abs_u%eta_ma2_zeta_p_mb2_eta(a)=DOT_PRODUCT(eta_ma2,matmul(zeta_p,matmul(tmss%du2(:,:,a),eta)))
+         m_abs_u%trace_ma2_zeta_p_mb2_zeta_p(a)=ThatTrace(nq,tmss%du2(:,:,a),zeta_p,tmss%du2(:,:,a))
+         if(cd)then
+            m_cd%ma2_zeta_f(a)=dz_frob_sym(nq,tmss%du2(:,:,a),zeta)
+            eta_mb2=matmul(eta,tmss%dm2(:,:,a))
+            m_cd%eta_ma2_eta(a)=DOT_PRODUCT(eta_ma2,eta)
+            m_cd%eta_mb2_eta(a)=DOT_PRODUCT(eta_mb2,eta)
+            m_cd%eta_ma2_zeta_p_mb1(a)=DOT_PRODUCT(eta_ma2,matmul(zeta_p,tmss%dm(:,a)))
+            m_cd%eta_mb2_zeta_p_ma1(a)=DOT_PRODUCT(eta_mb2,matmul(zeta_p,tmss%du(:,a)))
+            m_cd%eta_ma2_zeta_p_mb2_eta(a)=DOT_PRODUCT(eta_ma2,matmul(zeta_p,matmul(tmss%dm2(:,:,a),eta)))
+            m_cd%trace_ma2_zeta_p_mb2_zeta_p(a)=ThatTrace(nq,tmss%du2(:,:,a),zeta_p,tmss%dm2(:,:,a))
+         end if
+         if(mag)then
+            m_abs_m%ma2_zeta_f(a)=dz_frob_sym(nq,tmss%dm2(:,:,a),zeta)
+            eta_ma2=matmul(eta,tmss%dm2(:,:,a))
+            eta_mb2=eta_ma2
+            m_abs_m%eta_ma2_eta(a)=DOT_PRODUCT(eta_ma2,eta)
+            m_abs_m%eta_mb2_eta(a)=m_abs_m%eta_ma2_eta(a)
+            m_abs_m%eta_ma2_zeta_p_mb1(a)=DOT_PRODUCT(eta_ma2,matmul(zeta_p,tmss%dm(:,a)))
+            m_abs_m%eta_mb2_zeta_p_ma1(a)=DOT_PRODUCT(eta_mb2,matmul(zeta_p,tmss%dm(:,a)))
+            m_abs_m%eta_ma2_zeta_p_mb2_eta(a)=DOT_PRODUCT(eta_ma2,matmul(zeta_p,matmul(tmss%dm2(:,:,a),eta)))
+            m_abs_m%trace_ma2_zeta_p_mb2_zeta_p(a)=ThatTrace(nq,tmss%dm2(:,:,a),zeta_p,tmss%dm2(:,:,a))
+         end if
+      end do
+      
+   end subroutine MakeMatrices_OPS
+   
+   pure function Calc_X_OPS_T1(x0,ma0,mb0,mat,a,typee)result(res)
+      type(TD_OPA_T1T1),intent(in) :: mat
+      integer,intent(in) :: a,typee
+      double complex,intent(in) :: x0
+      double precision,intent(in) :: ma0(3),mb0(3)
+      double complex :: res
+      
+      select case(typee)
+         case(1) !FC-FC
+            res=x0*ma0(a)*mb0(a)
+         case(2) !HT-FC
+            res=x0*mb0(a)*mat%ma1_eta(a)
+         case(3) !FC-HT
+            res=x0*ma0(a)*mat%mb1_eta(a)
+         case(4) !HT-HT
+            res=x0*(mat%ma1_eta(a)*mat%mb1_eta(a)+mat%mb1_zeta_p_ma1(a))
+         case(5) !HT2-FC
+            res=x0*mb0(a)*(mat%eta_ma2_eta(a)+mat%ma2_zeta_f(a))
+         case(6) !FC-HT2
+            res=x0*ma0(a)*(mat%eta_mb2_eta(a)+mat%mb2_zeta_f(a))
+         case(7) !HT2-HT
+            res=x0*((mat%eta_ma2_eta(a)+mat%ma2_zeta_f(a))*mat%mb1_eta(a)+2*mat%eta_ma2_zeta_p_mb1(a))
+         case(8) !HT-HT2
+            res=x0*((mat%eta_mb2_eta(a)+mat%mb2_zeta_f(a))*mat%ma1_eta(a)+2*mat%eta_mb2_zeta_p_ma1(a))
+         case(9) !HT2-HT2
+            res=x0*(mat%eta_ma2_eta(a)*mat%eta_mb2_eta(a)+mat%eta_ma2_eta(a)*mat%mb2_zeta_f(a)+4*mat%eta_ma2_zeta_p_mb2_eta(a)+mat%ma2_zeta_f(a)*mat%eta_mb2_eta(a)+mat%ma2_zeta_f(a)*mat%mb2_zeta_f(a)+2*mat%trace_ma2_zeta_p_mb2_zeta_p(a))
+      end select
+   end function Calc_X_OPS_T1
+   
+   pure function Calc_X_OPS_T2(x0,ma0,mb0,mat,a,b,typee)result(res)
+      type(TD_OPA_T2T2),intent(in) :: mat
+      integer,intent(in) :: a,b,typee
+      double complex,intent(in) :: x0
+      double precision,intent(in) :: ma0(3,3),mb0(3,3)
+      double complex :: res
+      
+      select case(typee)
+         case(1) !FC-FC
+            res=x0*ma0(a,b)*mb0(a,b)
+         case(2) !HT-FC
+            res=x0*mb0(a,b)*mat%ma1_eta(a,b)
+         case(3) !FC-HT
+            res=x0*ma0(a,b)*mat%mb1_eta(a,b)
+         case(4) !HT-HT
+            res=x0*(mat%ma1_eta(a,b)*mat%mb1_eta(a,b)+mat%mb1_zeta_p_ma1(a,b))
+         case(5) !HT2-FC
+            res=x0*mb0(a,b)*(mat%eta_ma2_eta(a,b)+mat%ma2_zeta_f(a,b))
+         case(6) !FC-HT2
+            res=x0*ma0(a,b)*(mat%eta_mb2_eta(a,b)+mat%mb2_zeta_f(a,b))
+         case(7) !HT2-HT
+            res=x0*((mat%eta_ma2_eta(a,b)+mat%ma2_zeta_f(a,b))*mat%mb1_eta(a,b)+2*mat%eta_ma2_zeta_p_mb1(a,b))
+         case(8) !HT-HT2
+            res=x0*((mat%eta_mb2_eta(a,b)+mat%mb2_zeta_f(a,b))*mat%ma1_eta(a,b)+2*mat%eta_mb2_zeta_p_ma1(a,b))
+         case(9) !HT2-HT2
+            res=x0*(mat%eta_ma2_eta(a,b)*mat%eta_mb2_eta(a,b)+mat%eta_ma2_eta(a,b)*mat%mb2_zeta_f(a,b)+4*mat%eta_ma2_zeta_p_mb2_eta(a,b)+mat%ma2_zeta_f(a,b)*mat%eta_mb2_eta(a,b)+mat%ma2_zeta_f(a,b)*mat%mb2_zeta_f(a,b)+2*mat%trace_ma2_zeta_p_mb2_zeta_p(a,b))
+      end select
+   end function Calc_X_OPS_T2
+   
+   subroutine Make_corrf_OPS(nq,temp,tmss,J,K,fc,ht,ht2,points_c,t_max,dt,abs_mag,abs_quad,cd,X_abs,X_CD)
+      type(TMS) tmss
+      type(TD_OPA_T1T1) mats_u,mats_m,mats_cd
+      type(TD_OPA_T2T2) mats_q
+      integer nq
+      logical fc,ht,ht2,ht3,cd,abs_mag,abs_quad
+      integer(int64) points_c,i
+      double precision t_max,dt,t_gr,t_ex,temp
+      double complex,allocatable :: X(:),a_gr(:),a_ex(:),A(:,:),B(:,:),E(:),v(:),eta(:),zeta(:,:),zeta_p(:,:)
+      double complex x0
+      double complex x_fc_fc,x_fc_ht,x_ht_fc,x_ht_ht,x_fc_ht2,x_ht2_fc,x_ht_ht2,x_ht2_ht,x_ht2_ht2
+      double complex xcd_fc_fc,xcd_fc_ht,xcd_ht_fc,xcd_ht_ht,xcd_fc_ht2,xcd_ht2_fc,xcd_ht_ht2,xcd_ht2_ht,xcd_ht2_ht2
+      
+      allocate(X_abs(points_c))
+      if(CD)allocate(X_CD(points_c))
+      
+      !$OMP PARALLEL DEFAULT(NONE) &
+      !$OMP PRIVATE(a_gr,a_ex,E,v,B,A,i,eta,zeta,zeta_p,t_gr,t_ex) &
+      !$OMP PRIVATE(x_fc_fc,x_fc_ht,x_ht_fc,x_ht_ht,x_fc_ht2,x_ht2_fc,x_ht_ht2,x_ht2_ht,x_ht2_ht2) &
+      !$OMP SHARED(X_abs,X_cd,nq,points_c,tmss,J,K,dt,t_off,wg,we,cd,maq)
+      allocate(a_gr(nq),a_ex(nq),E(nq),v(nq))
+      allocate(B(nq,nq),A(nq,nq))
+      allocate(eta(nq),zeta(nq,nq),zeta_p(nq,nq))
+      
+      !$OMP DO
+      do i = 1,points_c
+         t=dt*(i-1_8+t_off)
+         call x0_matrices(nq,wg,we,J,t,a_gr,a_ex,A,B,E)
+         x0=make_x0_OPS(nq,J,K,a_gr,a_ex,A,B,E,v,eta,zeta,zeta_p)
+         call MakeMatrices_OPS(nq,tmss,cd,abs_mag,abs_quad,ht2,eta,zeta,zeta_p,mats_u,mats_m,mats_q,mats_cd)
+         
+         X_abs(i)=0d0
+         X_CD(i)=0d0
+         if(fc)then
+            do a = 1,3
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,1)
+               if(CD)X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,1)
+               if(abs_mag)X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,1)
+               if(abs_quad)then
+                  do b =1,3
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,1)
+                  end do
+               end if
+            end do
+         end if
+         
+         if(ht)then
+            do a = 1,3
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,2)
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,3)
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,4)
+               
+               if(CD)then
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,2)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,3)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,4)
+               end if
+               if(abs_mag)then
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,2)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,3)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,4)
+               end if
+               if(abs_quad)then
+                  do b =1,3
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,2)
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,3)
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,4)
+                  end do
+               end if
+            end do
+         end if
+         
+         if(ht2)then
+            do a = 1,3
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,5)
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,6)
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,7)
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,8)
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,9)
+               
+               if(CD)then
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,5)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,6)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,7)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,8)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,9)
+               end if
+               if(abs_mag)then
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,5)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,6)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,7)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,8)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,9)
+               end if
+               if(abs_quad)then
+                  do b =1,3
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,5)
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,6)
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,7)
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,8)
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,9)
+                  end do
+               end if
+            end do
+         end if
+      end do
+      !$OMP END DO
+      
+      deallocate(a_gr,a_ex,E,v)
+      deallocate(B,A)
+      deallocate(eta,zeta,zeta_p)
+      !$OMP END PARALLEL
+      
+   end subroutine Make_corrf_OPS
+   
+   pure subroutine x0_matrices(nq,wg,we,Jd,t,a_gr,a_ex,A,B,E)
+      integer nq,i,ii
+      double precision t,wg(nq),we(nq),Jd(nq,nq)
+      double complex a_ex(nq),a_gr(nq),b_ex(nq),b_gr(nq),A(nq,nq),B(nq,nq),E(nq),bufa,bufb
+      
+      A=0
+      B=0
+      do i = 1,nq
+         a_gr(i)=wg(i)/sin(wg(i)*t)
+         a_ex(i)=we(i)/sin(we(i)*t)
+         b_gr(i)=wg(i)/tan(wg(i)*t)
+         b_ex(i)=we(i)/tan(we(i)*t)
+         A(i,i)=a_ex(i)
+         B(i,i)=b_ex(i)
+         E(i)=b_gr(i)-a_gr(i)
+         do j = 1,nq
+            bufa=0d0
+            bufb=0d0
+            do k = 1,nq
+               bufb=Jd(k,i)*b_ex(k)*Jd(k,j)
+               bufa=Jd(k,i)*a_ex(k)*Jd(k,j)
+            end do
+            A(i,j)=A(i,j)+bufA
+            B(i,j)=B(i,j)+bufb
+         end do
+      end do
+      
+      
+   end subroutine x0_matrices
+   
+   function make_x0_OPS(nq,Jd,K,a_gr,a_ex,A,B,E,v,eta,zeta,zeta_p)result(x0)
+      integer nq,i,Piv(nq),detPB
+      double precision Jd(nq,nq),K(nq),a_gr(nq),a_ex(nq)
+      double precision A(nq,nq),B(nq,nq),E(nq),v(nq)
+      double complex kek,bpa(nq,nq),bma(nq,nq),eta(nq),zeta(nq,nq),zeta_p(nq,nq),bufv,vt_bma_v
+      double precision lndet_bma,lndet_bpa,lndet_a_ex,lndet_a_gr,lndetprod
+      double precision phase_bma,phase_bpa,phase_a_ex,phase_a_gr,phaseprod,phaseI
+      
+      kek=0d0
+      do i = 1,nq
+         kek=kek+K(i)**2 * E(i)
+         bufv=0d0
+         !$OMP SIMD PRIVATE(j) REDUCTION(+:bufv)
+         do j = 1,nq
+            bufv=bufv+J(i,j)*E(j)*K(j)
+            bpa(j,i)=B(j,i)+A(j,i)
+            bma(j,i)=B(j,i)-A(j,i)
+         enddo
+         !$OMP END SIMD
+         v(i)=bufv
+      end do
+      
+      call DiagProd_c_big_vec_ln(a_gr,nq,lndet_a_gr,phase_a_gr)
+      call DiagProd_c_big_vec_ln(a_ex,nq,lndet_a_ex,phase_a_ex)
+      
+      call zgetrf(nq,nq,bma,nq,Piv,ierr) !LU form
+      call DetFromLU_C_big_ln(bma,nq,piv,lndet_bma,phase_bma,detPB)
+      call INV_C_lapack(bma,piv,z_lwork,nq) !inverse
+      
+      vt_bma_v=0d0
+      !$OMP SIMD PRIVATE(i) REDUCTION(+:vt_bma_v) COLLAPSE(2)
+      do i = 1,nq
+         do j = 1,nq
+            vt_bma_v=vt_bma_v+v(j)*bma(j,i)*v(i)
+         end do
+      end do
+      !$OMP END SIMD
+      call zgetrf(nq,nq,bpa,nq,Piv,ierr) !LU form
+      call DetFromLU_C_big_ln(bpa,nq,piv,lndet_bpa,phase_bpa,detPB)
+      call INV_C_lapack(bpa,piv,z_lwork,nq) !inverse
+      
+      eta=-matmul(bma,v)
+      zeta=-0.5d0*(bma+bpa)
+      zeta_p=-0.5d0*(bma-bpa)
+      
+      phaseI=(pi*nq)
+      lndetProd=0.5d0*(lndet_a_gr+lndet_a_ex-lndet_bma-lndet_bpa)
+      phaseProd=0.5d0*(lndet_a_gr-phaseI+lndet_a_ex-lndet_bma-lndet_bpa)
+      phaseProd=PhaseNorm(phaseProd)
+      x0=exp(lndetProd+kek-vt_bma_v)*(cos(phaseProd)+iu*sin(phaseProd))
+      
+   end function make_x0_OPS
+   
+   
+end module OPS_TD
 
 !Handles the vibronic RROA calculation, mostly the time-independent part
 module RROA
