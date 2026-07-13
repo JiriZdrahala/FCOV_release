@@ -7,7 +7,7 @@ program pmz_orca
    
    integer idiff,cc
    logical no_zero,q_dimless,only_double,lvstep
-   logical :: isOrca=.false.
+   logical :: isOrca=.false., isCastep=.false.
    double precision step
 
    integer nat,n3,nq,ch,m,inat,i,ic,ix
@@ -18,6 +18,10 @@ program pmz_orca
    character(4) num
    
    call ReadPar()
+   if(isOrca .and. isCastep)then
+      write(output_unit,'(A)')'ERROR: Both castep and orca are specified.'
+      call exit(1)
+   endif
    call ReadCM(77,ch,m)
    call ReadGeom(r,z,nat)
    n3=3*nat
@@ -160,6 +164,7 @@ program pmz_orca
          write(77,*)
          call WriteGeomHeader(77,ch,m,isOrca)
          call WriteGeom(77,z,r_cur,nat,isOrca)
+         call WriteInputTail(77,78)
          close(77)
          write(output_unit,*)filename
       end do
@@ -183,6 +188,7 @@ program pmz_orca
          write(77,*)
          call WriteGeomHeader(77,ch,m,isOrca)
          call WriteGeom(77,z,r_cur,nat,isOrca)
+         call WriteInputTail(77,78)
          close(77)
          write(output_unit,*)filename
       end do
@@ -277,7 +283,26 @@ program pmz_orca
       
 20    close(unittHead)
    end subroutine WriteInputHead
-   
+  
+   subroutine WriteInputTail(unitt,unittTail)
+      integer unitt,unittTail
+      character(500) s500
+      logical fex
+
+      inquire(file='AFTER.TXT',exist=fex)
+      if(.not.fex)return 
+
+      open(unittTail,file='AFTER.TXT')
+      
+      do
+         read(unittTail,'(A)',end=20)s500
+         write(unitt,'(A)')trim(s500)
+      end do
+      
+20    close(unittTail)
+   end subroutine WriteInputTail
+
+
    subroutine ReadCM(unitt,ch,m)
       integer unitt,ch,m
       
