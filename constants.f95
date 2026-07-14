@@ -58,6 +58,9 @@ module constants
      
       double precision, parameter :: au_2_cm = 2*Ry/1d2
       double precision, parameter :: cm_2_au = 1d0/au_2_cm
+      double precision, parameter :: J_2_au = 1d0/(h*cc)*100*au_2_cm
+      double precision, parameter :: au_2_J = 1d0/J_2_au
+      
       
       double precision, parameter :: cmAU_2_angfreq = cc_AU*2d0*pi
      

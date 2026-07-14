@@ -6208,6 +6208,8 @@ module OPS_TD
       double complex :: eta_ma2_zeta_p_mb2_eta(3,3),trace_ma2_zeta_p_mb2_zeta_p(3,3)
    end type TD_OPA_T2T2
    
+   contains
+   
    function Calc_OPA(CD,temp,nq,tmss,J,K,wg,we,fc,ht,ht2,ht3,gamma,theta,wmin,wmax,w_points,w_units,dofft,N_points,t_max)result(spr)
       integer nq,n_points,w_points
       integer(int64) points_c
@@ -6465,22 +6467,22 @@ module OPS_TD
       type(TMS) tmss
       type(TD_OPA_T1T1) mats_u,mats_m,mats_cd
       type(TD_OPA_T2T2) mats_q
-      integer nq
-      logical fc,ht,ht2,ht3,cd,abs_mag,abs_quad
+      integer nq,aa,bb
+      logical fc,ht,ht2,cd,abs_mag,abs_quad
       integer(int64) points_c,i
-      double precision t_max,dt,t_gr,t_ex,temp
-      double complex,allocatable :: X(:),a_gr(:),a_ex(:),A(:,:),B(:,:),E(:),v(:),eta(:),zeta(:,:),zeta_p(:,:)
-      double complex x0
+      double precision t_max,dt,t_gr,t_ex,temp,t
+      double complex,allocatable :: X_abs(:),X_CD(:),a_gr(:),a_ex(:),A(:,:),B(:,:),E(:),v(:),eta(:),zeta(:,:),zeta_p(:,:)
+      double complex x0,boltz
       double complex x_fc_fc,x_fc_ht,x_ht_fc,x_ht_ht,x_fc_ht2,x_ht2_fc,x_ht_ht2,x_ht2_ht,x_ht2_ht2
       double complex xcd_fc_fc,xcd_fc_ht,xcd_ht_fc,xcd_ht_ht,xcd_fc_ht2,xcd_ht2_fc,xcd_ht_ht2,xcd_ht2_ht,xcd_ht2_ht2
       
       allocate(X_abs(points_c))
       if(CD)allocate(X_CD(points_c))
-      
+      boltz=1d0/(kb*temp*J_2_au)
       !$OMP PARALLEL DEFAULT(NONE) &
-      !$OMP PRIVATE(a_gr,a_ex,E,v,B,A,i,eta,zeta,zeta_p,t_gr,t_ex) &
+      !$OMP PRIVATE(a_gr,a_ex,E,v,B,A,i,eta,zeta,zeta_p,t_gr,t_ex,t) &
       !$OMP PRIVATE(x_fc_fc,x_fc_ht,x_ht_fc,x_ht_ht,x_fc_ht2,x_ht2_fc,x_ht_ht2,x_ht2_ht,x_ht2_ht2) &
-      !$OMP SHARED(X_abs,X_cd,nq,points_c,tmss,J,K,dt,t_off,wg,we,cd,maq)
+      !$OMP SHARED(X_abs,X_cd,nq,points_c,tmss,J,K,dt,t_off,wg,we,cd,abs_mag,abs_quad,boltz)
       allocate(a_gr(nq),a_ex(nq),E(nq),v(nq))
       allocate(B(nq,nq),A(nq,nq))
       allocate(eta(nq),zeta(nq,nq),zeta_p(nq,nq))
@@ -6488,80 +6490,83 @@ module OPS_TD
       !$OMP DO
       do i = 1,points_c
          t=dt*(i-1_8+t_off)
+         t_gr=
+         t_ex=
          call x0_matrices(nq,wg,we,J,t,a_gr,a_ex,A,B,E)
          x0=make_x0_OPS(nq,J,K,a_gr,a_ex,A,B,E,v,eta,zeta,zeta_p)
-         call MakeMatrices_OPS(nq,tmss,cd,abs_mag,abs_quad,ht2,eta,zeta,zeta_p,mats_u,mats_m,mats_q,mats_cd)
+         
+         if(ht.or.ht2)call MakeMatrices_OPS(nq,tmss,cd,abs_mag,abs_quad,ht2,eta,zeta,zeta_p,mats_u,mats_m,mats_q,mats_cd)
          
          X_abs(i)=0d0
          X_CD(i)=0d0
          if(fc)then
-            do a = 1,3
-               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,1)
-               if(CD)X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,1)
-               if(abs_mag)X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,1)
+            do aa = 1,3
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%u(aa),mats_u,aa,1)
+               if(CD)X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%m(aa),mats_cd,aa,1)
+               if(abs_mag)X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(aa),tmss%m(aa),mats_m,aa,1)
                if(abs_quad)then
-                  do b =1,3
-                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,1)
+                  do bb =1,3
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(aa,bb),tmss%q(aa,bb),mats_q,aa,bb,1)
                   end do
                end if
             end do
          end if
          
          if(ht)then
-            do a = 1,3
-               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,2)
-               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,3)
-               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,4)
+            do aa = 1,3
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%u(aa),mats_u,aa,2)
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%u(aa),mats_u,aa,3)
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%u(aa),mats_u,aa,4)
                
                if(CD)then
-                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,2)
-                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,3)
-                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,4)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%m(aa),mats_cd,aa,2)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%m(aa),mats_cd,aa,3)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%m(aa),mats_cd,aa,4)
                end if
                if(abs_mag)then
-                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,2)
-                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,3)
-                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,4)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(aa),tmss%m(aa),mats_m,aa,2)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(aa),tmss%m(aa),mats_m,aa,3)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(aa),tmss%m(aa),mats_m,aa,4)
                end if
                if(abs_quad)then
-                  do b =1,3
-                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,2)
-                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,3)
-                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,4)
+                  do bb =1,3
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(aa,bb),tmss%q(aa,bb),mats_q,aa,bb,2)
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(aa,bb),tmss%q(aa,bb),mats_q,aa,bb,3)
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(aa,bb),tmss%q(aa,bb),mats_q,aa,bb,4)
                   end do
                end if
             end do
          end if
          
          if(ht2)then
-            do a = 1,3
-               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,5)
-               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,6)
-               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,7)
-               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,8)
-               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%u(a),mats_u,a,9)
+            do aa = 1,3
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%u(aa),mats_u,aa,5)
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%u(aa),mats_u,aa,6)
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%u(aa),mats_u,aa,7)
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%u(aa),mats_u,aa,8)
+               X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%u(aa),mats_u,aa,9)
                
                if(CD)then
-                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,5)
-                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,6)
-                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,7)
-                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,8)
-                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(a),tmss%m(a),mats_cd,a,9)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%m(aa),mats_cd,aa,5)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%m(aa),mats_cd,aa,6)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%m(aa),mats_cd,aa,7)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%m(aa),mats_cd,aa,8)
+                  X_CD(i)=X_CD(i)+Calc_X_OPS_T1(x0,tmss%u(aa),tmss%m(aa),mats_cd,aa,9)
                end if
                if(abs_mag)then
-                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,5)
-                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,6)
-                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,7)
-                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,8)
-                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(a),tmss%m(a),mats_m,a,9)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(aa),tmss%m(aa),mats_m,aa,5)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(aa),tmss%m(aa),mats_m,aa,6)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(aa),tmss%m(aa),mats_m,aa,7)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(aa),tmss%m(aa),mats_m,aa,8)
+                  X_abs(i)=X_abs(i)+Calc_X_OPS_T1(x0,tmss%m(aa),tmss%m(aa),mats_m,aa,9)
                end if
                if(abs_quad)then
-                  do b =1,3
-                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,5)
-                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,6)
-                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,7)
-                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,8)
-                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(a,b),tmss%q(a,b),mats_q,a,b,9)
+                  do bb =1,3
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(aa,bb),tmss%q(aa,bb),mats_q,aa,bb,5)
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(aa,bb),tmss%q(aa,bb),mats_q,aa,bb,6)
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(aa,bb),tmss%q(aa,bb),mats_q,aa,bb,7)
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(aa,bb),tmss%q(aa,bb),mats_q,aa,bb,8)
+                     X_abs(i)=X_abs(i)+Calc_X_OPS_T2(x0,tmss%q(aa,bb),tmss%q(aa,bb),mats_q,aa,bb,9)
                   end do
                end if
             end do
@@ -6576,18 +6581,21 @@ module OPS_TD
       
    end subroutine Make_corrf_OPS
    
-   pure subroutine x0_matrices(nq,wg,we,Jd,t,a_gr,a_ex,A,B,E)
-      integer nq,i,ii
-      double precision t,wg(nq),we(nq),Jd(nq,nq)
-      double complex a_ex(nq),a_gr(nq),b_ex(nq),b_gr(nq),A(nq,nq),B(nq,nq),E(nq),bufa,bufb
+   pure subroutine x0_matrices(nq,wg,we,Jd,t_gr,t_ex,a_gr,a_ex,A,B,E)
+      integer,intent(in) :: nq
+      integer i,ii
+      double complex,intent(in) :: t_gr,t_ex
+      double precision,intent(in) :: wg(nq),we(nq),Jd(nq,nq)
+      double complex,intent(inout) :: a_ex(nq),a_gr(nq),A(nq,nq),B(nq,nq),E(nq)
+      double complex bufa,bufb,b_ex(nq),b_gr(nq)
       
       A=0
       B=0
       do i = 1,nq
-         a_gr(i)=wg(i)/sin(wg(i)*t)
-         a_ex(i)=we(i)/sin(we(i)*t)
-         b_gr(i)=wg(i)/tan(wg(i)*t)
-         b_ex(i)=we(i)/tan(we(i)*t)
+         a_gr(i)=iu*wg(i)/sin(wg(i)*t_gr)
+         a_ex(i)=iu*we(i)/sin(we(i)*t_ex)
+         b_gr(i)=iu*wg(i)/tan(wg(i)*t_gr)
+         b_ex(i)=iu*we(i)/tan(we(i)*t_ex)
          A(i,i)=a_ex(i)
          B(i,i)=b_ex(i)
          E(i)=b_gr(i)-a_gr(i)
@@ -6607,7 +6615,7 @@ module OPS_TD
    end subroutine x0_matrices
    
    function make_x0_OPS(nq,Jd,K,a_gr,a_ex,A,B,E,v,eta,zeta,zeta_p)result(x0)
-      integer nq,i,Piv(nq),detPB
+      integer nq,i,j,Piv(nq),detPB
       double precision Jd(nq,nq),K(nq),a_gr(nq),a_ex(nq)
       double precision A(nq,nq),B(nq,nq),E(nq),v(nq)
       double complex kek,bpa(nq,nq),bma(nq,nq),eta(nq),zeta(nq,nq),zeta_p(nq,nq),bufv,vt_bma_v
@@ -6620,7 +6628,7 @@ module OPS_TD
          bufv=0d0
          !$OMP SIMD PRIVATE(j) REDUCTION(+:bufv)
          do j = 1,nq
-            bufv=bufv+J(i,j)*E(j)*K(j)
+            bufv=bufv+Jd(i,j)*E(j)*K(j)
             bpa(j,i)=B(j,i)+A(j,i)
             bma(j,i)=B(j,i)-A(j,i)
          enddo
