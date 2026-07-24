@@ -900,7 +900,7 @@ program rroa_td_num
       double precision u(3,nst,nfiles),m(3,nst,nfiles),q(3,3,nst,nfiles),ens(nst),wexc(nexc),wexc_cur,gamma,wg
       double precision u0(3,nst),m0(3,nst),q0(3,3,nst)
       double precision wr,smat(n3,nq),sqrt_w
-      double precision duu_1,duu_2,dum_1,dum_2,dmu_1,dmu_2,duq_1,duq_2,dqu_1,dqu_2
+      double precision duu,dum,dmu,duq,dqu
       
       double complex f,f2
       type(Polar) res(nexc)
@@ -932,31 +932,31 @@ program rroa_td_num
             if(ffr)then
                do a = 1,3
                   do b = 1,3
-                     call TDPolar_derivs(iq,i,nq,n3,nst,a,b,duu_1,duu_2,dum_1,dum_2,dmu_1,dmu_2,u,m,u0,m0,step,cen,nfiles,smat)
-                     res(iexc)%ap(a,b)=res(iexc)%ap(a,b) + duu_1*f
-                     res(iexc)%G(a,b)=res(iexc)%G(a,b) + dum_1*iu*f2
-                     res(iexc)%Gc(a,b)=res(iexc)%Gc(a,b) + dmu_1*iu*f2
+                     call TDPolar_derivs(iq,i,nq,n3,nst,a,b,duu,dum,dmu,u,m,u0,m0,step,cen,nfiles,smat)
+                     res(iexc)%ap(a,b)=res(iexc)%ap(a,b) + duu*f
+                     res(iexc)%G(a,b)=res(iexc)%G(a,b) + dum*iu*f2
+                     res(iexc)%Gc(a,b)=res(iexc)%Gc(a,b) + dmu*iu*f2
                      do c = 1,3
-                        call TDPolar_derivsQ(iq,i,nq,n3,nst,a,b,c,duq_1,duq_2,dqu_1,dqu_2,u,q,u0,q0,step,cen,nfiles,smat)
-                        res(iexc)%A(a,b,c)=res(iexc)%A(a,b,c)+duq_1*f
-                        res(iexc)%Ac(a,b,c)=res(iexc)%Ac(a,b,c)+dqu_1*f
+                        call TDPolar_derivsQ(iq,i,nq,n3,nst,a,b,c,duq,dqu,u,q,u0,q0,step,cen,nfiles,smat)
+                        res(iexc)%A(a,b,c)=res(iexc)%A(a,b,c)+duq*f
+                        res(iexc)%Ac(a,b,c)=res(iexc)%Ac(a,b,c)+dqu*f
                      end do
                   end do
                end do
             else
                do a = 1,3
                   do b = 1,3
-                     call TDPolar_derivs(iq,i,nq,n3,nst,a,b,duu_1,duu_2,dum_1,dum_2,dmu_1,dmu_2,u,m,u0,m0,step,cen,nfiles,smat)
+                     call TDPolar_derivs(iq,i,nq,n3,nst,a,b,duu,dum,dmu,u,m,u0,m0,step,cen,nfiles,smat)
                   
-                     res(iexc)%ap(a,b)=res(iexc)%ap(a,b) + conjg(duu_1*f + duu_2*f2)
+                     res(iexc)%ap(a,b)=res(iexc)%ap(a,b) + conjg(duu*(f+f2))
                      ! res(iexc)%G(a,b)=res(iexc)%G(a,b) + u(a,i)*m(b,i)*iu*f - m(b,i)*u(a,i)*iu*f2
                      ! res(iexc)%Gc(a,b)=res(iexc)%Gc(a,b) - m(a,i)*u(b,i)*iu*f + u(b,i)*m(a,i)*iu*f2
-                     res(iexc)%G(a,b)=res(iexc)%G(a,b) + conjg(dum_1*iu*f + dmu_2*iu*f2)
-                     res(iexc)%Gc(a,b)=res(iexc)%Gc(a,b) + conjg(dmu_1*iu*f + dum_2*iu*f2)
+                     res(iexc)%G(a,b)=res(iexc)%G(a,b) + conjg(dum*iu*(f+f2))
+                     res(iexc)%Gc(a,b)=res(iexc)%Gc(a,b) + conjg(dmu*iu*(f+f2))
                      do c = 1,3
-                        call TDPolar_derivsQ(iq,i,nq,n3,nst,a,b,c,duq_1,duq_2,dqu_1,dqu_2,u,q,u0,q0,step,cen,nfiles,smat)
-                        res(iexc)%A(a,b,c)=res(iexc)%A(a,b,c)+conjg(duq_1*f + dqu_2*f2)
-                        res(iexc)%Ac(a,b,c)=res(iexc)%Ac(a,b,c)+conjg(dqu_1*f + duq_2*f2)
+                        call TDPolar_derivsQ(iq,i,nq,n3,nst,a,b,c,duq,dqu,u,q,u0,q0,step,cen,nfiles,smat)
+                        res(iexc)%A(a,b,c)=res(iexc)%A(a,b,c)+conjg(duq*(f+f2))
+                        res(iexc)%Ac(a,b,c)=res(iexc)%Ac(a,b,c)+conjg(dqu*(f+f2))
                      end do
                   end do
                end do
@@ -972,51 +972,45 @@ program rroa_td_num
       end do
    end subroutine TDPolar_nograd
    
-   subroutine TDPolar_derivs(iq,ist,nq,n3,nst,a,b,duu_1,duu_2,dum_1,dum_2,dmu_1,dmu_2,u_all,m_all,u0,m0,step,cen,nfiles,smat)
+   subroutine TDPolar_derivs(iq,ist,nq,n3,nst,a,b,duu,dum,dmu,u_all,m_all,u0,m0,step,cen,nfiles,smat)
       double precision,intent(in) :: u_all(3,nst,nfiles),m_all(3,nst,nfiles),u0(3,nst),m0(3,nst)
       double precision,intent(in) :: step,smat(n3,nq)
       integer,intent(in) :: nfiles,ist,a,b,n3,iq,nq,nst
       logical,intent(in) :: cen
-      double precision,intent(out) :: duu_1,duu_2,dum_1,dum_2,dmu_1,dmu_2
+      double precision,intent(out) :: duu,dum,dmu
       double precision :: dsdri !d(something)/dr
       integer i
       
-      duu_1=0d0
-      duu_2=0d0
-      dum_1=0d0
-      dum_2=0d0
-      dmu_1=0d0
-      dmu_2=0d0
+      duu=0d0
+      dum=0d0
+      dmu=0d0
       if(cen)then
          do i = 1,n3
             !<n|u_a|j>*<j|u_b|n>
             dsdri=cendiff_r(u_all(a,ist,i)*u_all(b,ist,i),u_all(a,ist,i+n3)*u_all(b,ist,i+n3),step)
-            duu_1=duu_1+smat(i,iq)*dsdri
+            duu=duu+smat(i,iq)*dsdri
             
             !<n|u_a|j>*<j|m_b|n>
             dsdri=cendiff_r(u_all(a,ist,i)*m_all(b,ist,i),u_all(a,ist,i+n3)*m_all(b,ist,i+n3),step)
-            dum_1=dum_1+smat(i,iq)*dsdri
+            dum=dum+smat(i,iq)*dsdri
             
             dsdri=cendiff_r(-m_all(a,ist,i)*u_all(b,ist,i),-m_all(a,ist,i+n3)*u_all(b,ist,i+n3),step)
-            dmu_1=dmu_1+smat(i,iq)*dsdri
+            dmu=dmu+smat(i,iq)*dsdri
          end do
       else
          do i = 1,n3
             !<n|u_a|j>*<j|u_b|n>
             dsdri=diff_r(u0(a,ist)*u0(b,ist),u_all(a,ist,i)*u_all(b,ist,i),step)
-            duu_1=duu_1+smat(i,iq)*dsdri
+            duu=duu+smat(i,iq)*dsdri
             
             !<n|u_a|j>*<j|m_b|n>
             dsdri=diff_r(u0(a,ist)*m0(b,ist),u_all(a,ist,i)*m_all(b,ist,i),step)
-            dum_1=dum_1+smat(i,iq)*dsdri
+            dum=dum+smat(i,iq)*dsdri
             
             dsdri=diff_r(-m0(a,ist)*u0(b,ist),-m_all(a,ist,i)*u_all(b,ist,i),step)
-            dmu_1=dmu_1+smat(i,iq)*dsdri
+            dmu=dmu+smat(i,iq)*dsdri
          end do
       end if
-      duu_2=duu_1
-      dmu_2=-dum_1
-      dum_2=-dmu_1
    end subroutine TDPolar_derivs
    
    subroutine TDPolar_derivsQ(iq,ist,nq,n3,nst,a,b,c,duq_1,duq_2,dqu_1,dqu_2,u_all,q_all,u0,q0,step,cen,nfiles,smat)

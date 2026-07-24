@@ -1671,7 +1671,7 @@ module util
     end subroutine rd_casscf_orca
    
    
-   subroutine rd_td_new(unitt,filename,nstates,z,r,nat,u,v,m,q,e_gr,ens,mult_tm,dnst,primq)
+   subroutine rd_td_new(unitt,filename,nstates,z,r,nat,u,v,m,q,e_gr,ens,mult_tm,dnst,coeffs)
       character(*) filename
       character(80),allocatable :: splitt(:)
       integer unitt,nstates,nat,i,ii,sizee,j,k,l,idx,istate,dnst,nstates_r,td,bufi
@@ -1680,8 +1680,9 @@ module util
       integer,parameter :: max_tdc=100
       double precision,allocatable :: u(:,:),v(:,:),m(:,:),q(:,:,:)
       double precision,allocatable :: r(:),r_h(:),ens(:),ens_h(:)
+      double precision,allocatable :: coeffs(:,:,:),coeffs_cur(:,:,:),coeffs_h(:,:,:)
+      double precision,allocatable :: ovmat(:,:)
       double precision bufr
-      logical primq
       
       integer tdc_cur_n,orb_gr_idx,orb_ex_idx,tdcs_n,n,num
       integer,allocatable :: order(:)
@@ -1697,7 +1698,9 @@ module util
       double precision e_gr,bl(5,16),vall
       character(100) s80,s80_2,s_arr(9),buf
       character(8) bufc
-      logical endd
+      logical endd,get_coeffs,compare_coeffs,cssw
+      integer,parameter :: max_orb=200
+      integer from_orb,to_orb
       
       allocate(z_h(maxat),r_h(3*maxat),ens_h(maxtd))
       ! allocate(tdc_cur(max_tdc),tdcs_h(maxtd))
@@ -1706,6 +1709,19 @@ module util
       istate=1
       nstates=0
       nstates_r=0
+      get_coeffs=.false.
+      if(.not.allocated(coeffs) .and. cssw)then
+         allocate(coeffs_h(max_orb,max_orb,maxtd))
+         coeffs_h=0
+         get_coeffs=.true.
+         compare_coeffs=.false.
+      elseif(allocated(coeffs) .and. cssw)then
+         allocate(coeffs_h(max_orb,max_orb,maxtd))
+         coeffs_h=0
+         get_coeffs=.true.
+         compare_coeffs=.true.
+      end if
+      
       open(unitt,file=filename,status='old')
 30    read(unitt,'(A100)',end=40)s80
       
@@ -1732,11 +1748,23 @@ module util
          e=(1d7/e)*cm_2_au
          nstates_r=nstates_r+1
          ens_h(nstates_r)=e
+         if(.not.get_coeffs)goto 30
+         read(unitt,'(A80)')s80
+         do while(index(s80,'->')>0)
+            read(s80,*)from_orb,bufc,to_orb,vall
+            coeffs_h(from_orb,to_orb,nstates_r)=vall
+            read(unitt,'(A80)')s80
+         end do
       elseif(s80(2:31)=='Electronic transition elements')then
          if(dnst<=0)dnst=nstates_r
          nstates=dnst
          if(allocated(ens))deallocate(ens)
          ens=ens_h(1:dnst)
+         if(compare_coeffs .and. cssw)then
+            coeffs_cur=coeffs_h(:,:,1:dnst)
+         elseif(.not.compare_coeffs .and. cssw)
+            coeffs=coeffs_h(:,:,1:dnst)
+         end if
          ! if(allocated(tdcs))deallocate(tdcs)
          ! tdcs=tdcs_h(1:dnst)
          endd=.false.
@@ -1824,11 +1852,7 @@ module util
                qq(2)=qqq(4)
                qq(3)=qqq(5)
                qq(5)=qqq(6)
-               if(primq)then
-                  q(:,:,i)=PrimitiveQ(qq)
-               else
-                  q(:,:,i)=TracelessQ(qq)
-               end if
+               q(:,:,i)=TracelessQ(qq)
             end do
             goto 60
          end if
@@ -1843,9 +1867,36 @@ module util
       v=v*mult_tm(2)
       m=m*mult_tm(3)
       
+      
+      if(compare_coeffs)then
+         allocate(ovmat(dnst,dnst))
+         ovmat=0
+         do i = 1,dnst
+            do j = 1,dnst
+               ovmat(i,j)=abs(MatOv(coeffs(:,:,i),coeffs_cur(:,:,j),max_orb))
+               ovmat(j,i)=ovmat(i,j)
+            end do
+         end do
+         deallocate(ovmat)
+      end if
+      
       !deallocate(tdc_cur,tdcs_h)
-      deallocate(ens_h)
+      deallocate(ens_h,coeffs_h)
    end subroutine rd_td_new
+   
+   function MatOv(a,b,n)result(res)
+      integer n,i,j
+      double precision a(n,n),b(n,n),res
+      
+      res=0
+      !$OMP SIMD COLLAPSE(2) PRIVATE(i,j) REDUCTION(+:res)
+      do i = 1,n
+         do j = 1,n
+            res=res+a(j,i)*b(j,i)
+         end do
+      end do
+      !$OMP END SIMD
+   end function MatOv
    
    subroutine rd_td_derivatives(unitt,filename,z,r,nat,u,v,m,q,du,dv,dm,dq,e_gr,e_tr,iroot,mult_tm)
       character(*) filename
