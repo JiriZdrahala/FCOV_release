@@ -329,7 +329,7 @@ program addpol
             call Transform2Cart(polres,n,.false.)
          end if
       elseif(TR(ft)=='FILE.POLARS')then
-         polres=ReadPolars(fn,n,wexc,e00,isNM)
+         polres=ReadPolars(77,fn,n,wexc,e00,isNM)
          if(isNM .and. (output_ttt .or. output_polars_c))then
             call Transform2Cart(polres,n,.true.)
          elseif(.not. isNM .and. (output_qttt .or. output_polars_q))then

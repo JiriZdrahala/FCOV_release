@@ -95,6 +95,7 @@ if [[ "$stuff" != *"j"* ]] ; then
 	gfortran -w ${compstr} -cpp $OUTDIR/constants.o $OUTDIR/strings.o $DIR/gettms.f95 -o $OUTDIR/gettms
 	gfortran -w ${compstr} -cpp $OUTDIR/constants.o $OUTDIR/strings.o $OUTDIR/util.o $DIR/elpol.f95 -o $OUTDIR/elpol
 	gfortran -w ${compstr} -cpp $OUTDIR/constants.o $OUTDIR/util.o $OUTDIR/strings.o $DIR/addpol.f95 -o $OUTDIR/addpol
+	gfortran -w ${compstr} -cpp $OUTDIR/constants.o $OUTDIR/util.o $OUTDIR/strings.o $DIR/FCOV_Raydiff.f95 -o $OUTDIR/FCOV_Raydiff
 fi
 
 gcc -c ${compstr} $DIR/cpu.c -o $OUTDIR/cpu.o

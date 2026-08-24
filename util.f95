@@ -636,26 +636,30 @@ module util
       end if
    end function FC2Str_new
    
-   function ReadPolars(fn,n,wexc,e00,isNM)result(polres)
+   function ReadPolars(unitt,fn,n,wexc,e00,isNM)result(polres)
       character(*) fn
-      integer n,i
+      integer n,i,unitt,ios
       double precision wexc,e00
       logical endd,isNM
       type(polar),allocatable :: polres(:)
       type(polar) :: curPol
       
       endd=.false.
-      open(77,file=fn,status='old')
-      read(77,*)n
+      open(unitt,file=fn,status='old',iostat=ios,err=199)
+      read(unitt,*)n
       allocate(polres(n))
       i=0
       do while(.not. endd)
          i=i+1
-         call ReadTenPretty_notr(77,endd,curPol,wexc,isNM)
+         call ReadTenPretty_notr(unitt,endd,curPol,wexc,isNM)
          if(endd)exit
          polres(i)=curPol
       end do
-      close(77)
+      close(unitt)
+      return
+199   continue
+      write(output_unit,*)ios
+      call exit(666)
    end function ReadPolars
    
    subroutine ReadTenPretty(unitt,endd,tr,wexc)

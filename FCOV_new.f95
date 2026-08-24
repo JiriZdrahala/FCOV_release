@@ -3112,7 +3112,7 @@ module RROA_TD
       res=dt*(buf+res)
    end function ITG_TR
    
-   function DoRROA_TD_k(trType,nq,k_batch,batch_n,wg,we,u_gr,m_gr,q_gr,du_gr,dm_gr,dq_gr,u_ex,m_ex,q_ex,du_ex,dm_ex,dq_ex,du2_ex,dm2_ex,dq2_ex, &
+   function DoRROA_TD_k(trType,nq,ray,k_batch,batch_n,wg,we,u_gr,m_gr,q_gr,du_gr,dm_gr,dq_gr,u_ex,m_ex,q_ex,du_ex,dm_ex,dq_ex,du2_ex,dm2_ex,dq2_ex, &
       v,gamma_gr,kgk,jgj,J_dusch,K_dusch,J_i,K_i,gamma,theta,eps,w_ad,N_points,t_max,fs,wmax,sparse,td_alt,J_nonzero,nz, &
       ht,ht2,fixphase,tmexp,st,contr,n_thr,wexc,nexc,bro,X_tol,write_corrf,write_fft_cf,num_integ,norm_fft,correctPhaseX,correctPhaseX_abs,interpolateFFT,wexc_adapt,w_ad_zero)result(polars)
       
@@ -3143,7 +3143,7 @@ module RROA_TD
       double complex,allocatable :: X(:)
       double precision,allocatable :: X_copy(:),X_copy2(:)
       logical ht,ht2,tmexp(2),sparse,write_actual,write_now,write_corrf,write_fft_cf,num_integ,norm_fft,st,correctPhaseX,correctPhaseX_abs
-      logical :: interpolateFFT,st_actual,wexc_adapt,w_ad_correct,contr(9),td_alt,w_ad_zero,fixphase
+      logical :: interpolateFFT,st_actual,wexc_adapt,w_ad_correct,contr(9),td_alt,w_ad_zero,fixphase,ray
       integer, parameter :: X_last_c=500
       
       type(tms) tmss
@@ -3232,7 +3232,7 @@ module RROA_TD
          end if
       end if
       if(td_alt)then
-      call Make_Corrf_SplitPropagator(nq,wg,we,tmss,v,detg,kgk,jgj,J_dusch,K_dusch,gamma,theta,eps,w_ad_new,N_points,t_max,ht,ht2,fixphase,contr,n_thr,X_ap,X_g,x_gc,x_a,x_ac,X_0)
+      call Make_Corrf_SplitPropagator(nq,wg,we,tmss,v,detg,kgk,jgj,J_dusch,K_dusch,gamma,theta,eps,w_ad_new,N_points,t_max,ht,ht2,fixphase,contr,n_thr,Ray,X_ap,X_g,x_gc,x_a,x_ac,X_0)
       else
       call Make_corrf_k(trType,nq,k_batch,batch_n,wg,we,tmss, &
          v,gamma_gr,detG,kgk,J_dusch,K_dusch,gamma,theta,w_ad_new,N_points,t_max,sparse,J_nonzero,nz,ht,ht2,tmexp,fixphase,contr,n_thr,10d0**(-X_tol), &
@@ -3261,12 +3261,13 @@ module RROA_TD
       !$OMP PARALLEL DO DEFAULT(NONE) &
       !$OMP FIRSTPRIVATE(X,X_copy,X_copy2) &
       !$OMP PRIVATE(kk_idx,kk,wr_exc,polarr,bufC,x_max,x_last,write_now) &
-      !$OMP SHARED(X_ap,X_G,X_Gc,X_A,X_Ac,dt) &
+      !$OMP SHARED(X_ap,X_G,X_Gc,X_A,X_Ac,dt,ray) &
       !$OMP SHARED(batch_n,X_tol,polars,k_batch,wg,wexc,points_c,dw,n_points,write_actual) &
       !$OMP SHARED(norm_fft,num_integ,interpolatefft,st_actual,bro,nexc,t_max,t_off,trType,wexc_adapt,td_alt)
       do kk_idx=1,batch_n
-         kk=k_batch(kk_idx) 
-         wr_exc=wexc-wg(kk)
+         kk=k_batch(kk_idx)
+         if(ray)kk=1
+         !wr_exc=wexc-wg(kk)
          if(TD_alt)then
             X=X_ap(kk_idx,2,2,:)
          else
@@ -3300,25 +3301,25 @@ module RROA_TD
                end if
                
                call GetXabk(2_8**N_points,X,X_ap,a,b,kk_idx,td_alt)
-               bufC=ExtractPol(X,wg(kk),kk,1,bro,norm_fft,num_integ,wexc,dw,nexc,t_max,dt,t_off,N_points,points_c,interpolateFFT,write_now,.false.,wexc_adapt)
+               bufC=ExtractPol(X,kk,1,bro,norm_fft,num_integ,wexc,dw,nexc,t_max,dt,t_off,N_points,points_c,interpolateFFT,write_now,.false.,wexc_adapt)
                polarr%Ap(a,b,:)=bufC
                
                call GetXabk(2_8**N_points,X,X_G,a,b,kk_idx,td_alt)
-               bufC=ExtractPol(X,wg(kk),kk,2,bro,norm_fft,num_integ,wexc,dw,nexc,t_max,dt,t_off,N_points,points_c,interpolateFFT,.false.,.false.,wexc_adapt)
+               bufC=ExtractPol(X,kk,2,bro,norm_fft,num_integ,wexc,dw,nexc,t_max,dt,t_off,N_points,points_c,interpolateFFT,.false.,.false.,wexc_adapt)
                polarr%G(a,b,:)=bufC
                
                call GetXabk(2_8**N_points,X,X_Gc,a,b,kk_idx,td_alt)
-               bufC=ExtractPol(X,wg(kk),kk,3,bro,norm_fft,num_integ,wexc,dw,nexc,t_max,dt,t_off,N_points,points_c,interpolateFFT,.false.,.false.,wexc_adapt)
+               bufC=ExtractPol(X,kk,3,bro,norm_fft,num_integ,wexc,dw,nexc,t_max,dt,t_off,N_points,points_c,interpolateFFT,.false.,.false.,wexc_adapt)
                polarr%Gc(a,b,:)=bufC
                
                
                do c = 1,3
                   call GetXabkQ(2_8**N_points,X,X_A,a,b,c,kk_idx,td_alt)
-                  bufC=ExtractPol(X,wg(kk),kk,4,bro,norm_fft,num_integ,wexc,dw,nexc,t_max,dt,t_off,N_points,points_c,interpolateFFT,.false.,.false.,wexc_adapt)
+                  bufC=ExtractPol(X,kk,4,bro,norm_fft,num_integ,wexc,dw,nexc,t_max,dt,t_off,N_points,points_c,interpolateFFT,.false.,.false.,wexc_adapt)
                   polarr%A(a,b,c,:)=bufC
                   
                   call GetXabkQ(2_8**N_points,X,X_Ac,a,b,c,kk_idx,td_alt)
-                  bufC=ExtractPol(X,wg(kk),kk,5,bro,norm_fft,num_integ,wexc,dw,nexc,t_max,dt,t_off,N_points,points_c,interpolateFFT,.false.,.false.,wexc_adapt)
+                  bufC=ExtractPol(X,kk,5,bro,norm_fft,num_integ,wexc,dw,nexc,t_max,dt,t_off,N_points,points_c,interpolateFFT,.false.,.false.,wexc_adapt)
                   polarr%Ac(a,b,c,:)=bufC
                   
                end do
@@ -3388,22 +3389,18 @@ module RROA_TD
       end do   
    end subroutine ShiftFFT
    
-   function ExtractPol(X,wg,kk,which,bro,norm_fft,num_integ,wexc,dw,nexc,t_max,dt,t_off,N_points,points_c,interpolateFFT,output,st,wexc_adapt)result(res)
+   function ExtractPol(X,kk,which,bro,norm_fft,num_integ,wexc,dw,nexc,t_max,dt,t_off,N_points,points_c,interpolateFFT,output,st,wexc_adapt)result(res)
       logical output,norm_fft,num_integ,interpolateFFT,st,wexc_adapt
       integer(int64) points_c,ii
       integer bro(points_c),N_points
       integer,allocatable :: bro_copy(:)
-      double precision wexc(nexc),wexc_c(nexc),t_max,dw,diff,dw_conv,wg,dt,t_off
+      double precision wexc(nexc),wexc_c(nexc),t_max,dw,diff,dw_conv,dt,t_off
       double complex X(2**N_points),res(nexc),res1,res2
       integer which,iexc,nexc,w_idxs(nexc),w_idx,w_idx2,kk,bufi
       character(80) file_zz
       character(:),allocatable :: numm
       
-      if(wexc_adapt)then
-         wexc_c=wexc-wg/2d0
-      else
-         wexc_c=wexc
-      end if
+      wexc_c=wexc
       bufi=floor(log10(dble(kk)))+1
       numm=i2STR(kk,bufi)
       select case(which)
@@ -3504,10 +3501,10 @@ module RROA_TD
       end do
    end subroutine PrintCDiagonal
    
-   subroutine Make_Corrf_SplitPropagator(nq,wg,we,tmss,v,detG,kgk,JGJ,J,K,gamma,theta,eps,w_ad,N_points,t_max,ht,ht2,fixphase,contrs,n_thr,X_ap,X_G,X_Gc,X_A,X_Ac,X_0)
+   subroutine Make_Corrf_SplitPropagator(nq,wg,we,tmss,v,detG,kgk,JGJ,J,K,gamma,theta,eps,w_ad,N_points,t_max,ht,ht2,fixphase,contrs,n_thr,Ray,X_ap,X_G,X_Gc,X_A,X_Ac,X_0)
       integer nq,N_points,n_thr,i_thr,a,b,c
       integer(int64) points_c,chunk,i,c_arr(9)
-      logical ht,ht2,fixphase,contrs(9)
+      logical ht,ht2,fixphase,contrs(9),Ray
       type(tms) tmss
       type(big_double) detG
       type(TD_SplitP_Mats_T1T1) :: mats_ap,mats_G,mats_Gc
@@ -3532,9 +3529,13 @@ module RROA_TD
       integer ii,kk
       
       points_c=2_8**N_points
-      allocate(X_ap(nq,3,3,points_c),X_G(nq,3,3,points_c),X_Gc(nq,3,3,points_c))
-      allocate(X_A(nq,3,3,3,points_c),X_Ac(nq,3,3,3,points_c))
-      
+      if(ray)then
+         allocate(X_ap(1,3,3,points_c),X_G(1,3,3,points_c),X_Gc(1,3,3,points_c))
+         allocate(X_A(1,3,3,3,points_c),X_Ac(1,3,3,3,points_c))
+      else
+         allocate(X_ap(nq,3,3,points_c),X_G(nq,3,3,points_c),X_Gc(nq,3,3,points_c))
+         allocate(X_A(nq,3,3,3,points_c),X_Ac(nq,3,3,3,points_c))
+      end if
       if(ht)write(output_unit,'(A)',advance='no')'HT'
       if(ht2)write(output_unit,'(A)',advance='no')'HT2'
       flush(output_unit)
@@ -3560,7 +3561,7 @@ module RROA_TD
       !$OMP SHARED(X_ap,X_G,X_Gc,X_A,X_Ac,X_0) &
       !$OMP SHARED(gamma,theta,J,JT,K,jgj,kgk,tmss,v,wg,we,nq) &
       !$OMP SHARED(w_ad,points_c,t_max,ht,ht2,n_thr,t_off,dt) &
-      !$OMP SHARED(chunk,detG,phases,c_g,fixphase,eps,c_arr) &
+      !$OMP SHARED(chunk,detG,phases,c_g,fixphase,eps,c_arr,ray) &
       !$OMP PRIVATE(i_thr,i,t,aa,bb,abia,Bmat,D,Fi) &
       !$OMP PRIVATE(eta,zeta,zeta_p,phase,a,b,c) &
       !$OMP PRIVATE(j_zeta_p,j_zeta) &
@@ -3574,22 +3575,28 @@ module RROA_TD
       allocate(Fi(nq,nq),D(nq,nq))
       allocate(aa(nq),bb(nq),abia(nq),Bmat(nq,nq))
       
-      allocate(x_fc_fc(nq))
-      allocate(jt_eta(nq))
+      if(ray)then
+         allocate(x_fc_fc(1))
+      else
+         allocate(x_fc_fc(nq))
+      end if
+      if(.not.ray)allocate(jt_eta(nq))
       
       if(ht)then
          allocate(x_fc_ht(nq),x_ht_fc(nq),x_ht_ht(nq))
-         allocate(j_zeta(nq,nq),j_zeta_p(nq,nq))
+         if(.not.ray)allocate(j_zeta(nq,nq),j_zeta_p(nq,nq))
       end if
       if(ht2)then
          allocate(x_fc_ht2(nq),x_ht2_fc(nq),x_ht_ht2(nq),x_ht2_ht(nq),x_ht2_ht2(nq))
       end if
-      call AllocateMats_T1T1(nq,mats_ap,ht,ht2)
-      call AllocateMats_T1T1(nq,mats_G,ht,ht2)
-      call AllocateMats_T1T1(nq,mats_Gc,ht,ht2)
-      call AllocateMats_T1T2(nq,mats_A,ht,ht2)
-      call AllocateMats_T2T1(nq,mats_Ac,ht,ht2)
       
+      if(.not.ray)then
+         call AllocateMats_T1T1(nq,mats_ap,ht,ht2)
+         call AllocateMats_T1T1(nq,mats_G,ht,ht2)
+         call AllocateMats_T1T1(nq,mats_Gc,ht,ht2)
+         call AllocateMats_T1T2(nq,mats_A,ht,ht2)
+         call AllocateMats_T2T1(nq,mats_Ac,ht,ht2)
+      end if
       
       if(fixphase)then
          !$OMP MASTER
@@ -3611,7 +3618,7 @@ module RROA_TD
       end if
       phase=0
       !$OMP DO SCHEDULE(STATIC,chunk)
-      do i = 1,points_c
+      time: do i = 1,points_c
          t=dt*(i-1_8+t_off) !workaround against t=0 (division by zero)
          damp=exp(-gamma*t - theta**2*t**2*0.5d0) 
          shift=exp(-iu*t*w_ad)
@@ -3625,9 +3632,34 @@ module RROA_TD
          end if
          x0=x0*shift*damp
          X_0(i)=x0
+         call MakeMatrices(ht,ht2,ray,nq,J,eta,zeta,zeta_p,tmss,mats_ap,mats_G,mats_Gc,mats_A,mats_Ac,j_zeta,j_zeta_p)
+
+         if(Ray)then
+            do a = 1,3
+               do b = 1,3
+                  X_ap(1,a,b,i)=tmss%u(a)*tmss%u(b)*x0*c_arr(1)
+                  X_G(1,a,b,i)=tmss%u(a)*tmss%m(b)*x0*c_arr(1)
+                  X_Gc(1,a,b,i)=-tmss%m(a)*tmss%u(b)*x0*c_arr(1)
+                  if(ht)then
+                     X_ap(1,a,b,i)=X_ap(1,a,b,i)+Calc_FC_HT_Ray(x0,tmss%u(a),mats_ap%b_eta(b))*c_arr(2)+Calc_HT_FC_Ray(x0,tmss%u(b),mats_ap%a_eta(a))*c_arr(3)+Calc_HT_HT_Ray(x0,mats_ap%a_eta(a),mats_ap%b_eta(b),mats_ap%a_zeta_p_b(a,b))*c_arr(4)
+                     X_G(1,a,b,i)=X_G(1,a,b,i)+Calc_FC_HT_Ray(x0,tmss%u(a),mats_g%b_eta(b))*c_arr(2)+Calc_HT_FC_Ray(x0,tmss%m(b),mats_g%a_eta(a))*c_arr(3)+Calc_HT_HT_Ray(x0,mats_g%a_eta(a),mats_g%b_eta(b),mats_g%a_zeta_p_b(a,b))*c_arr(4)
+                     X_Gc(1,a,b,i)=X_Gc(1,a,b,i)+Calc_FC_HT_Ray(x0,-tmss%m(a),mats_gc%b_eta(b))*c_arr(2)+Calc_HT_FC_Ray(x0,tmss%u(b),mats_gc%a_eta(a))*c_arr(3)+Calc_HT_HT_Ray(x0,mats_gc%a_eta(a),mats_gc%b_eta(b),mats_gc%a_zeta_p_b(a,b))*c_arr(4)
+                  end if
+                  do c = 1,3
+                     X_A(1,a,b,c,i)=tmss%u(a)*tmss%q(b,c)*x0*c_arr(1)
+                     X_Ac(1,c,a,b,i)=tmss%q(a,b)*tmss%u(c)*x0*c_arr(1)
+                     if(ht)then
+                        X_A(1,a,b,c,i)=X_A(1,a,b,c,i)+Calc_FC_HT_Ray(x0,tmss%u(a),mats_a%b_eta(b,c))*c_arr(2)+Calc_HT_FC_Ray(x0,tmss%q(b,c),mats_a%a_eta(a))*c_arr(3)+Calc_HT_HT_Ray(x0,mats_a%a_eta(a),mats_a%b_eta(b,c),mats_a%a_zeta_p_b(a,b,c))*c_arr(4)
+                        X_Ac(1,c,a,b,i)=X_Ac(1,c,a,b,i)+Calc_FC_HT_Ray(x0,tmss%q(a,b),mats_ac%b_eta(c))*c_arr(2)+Calc_HT_FC_Ray(x0,tmss%u(c),mats_ac%a_eta(a,b))*c_arr(3)+Calc_HT_HT_Ray(x0,mats_ac%a_eta(a,b),mats_ac%b_eta(c),mats_ac%a_zeta_p_b(a,b,c))*c_arr(4)
+                     end if
+                  end do
+               end do
+            end do
+            cycle time
+         end if
+         
          Jt_eta=matmul(J,eta)
             
-         call MakeMatrices(ht,ht2,nq,J,eta,zeta,zeta_p,tmss,mats_ap,mats_G,mats_Gc,mats_A,mats_Ac,j_zeta,j_zeta_p)
          
          x_fc_fc=(K+Jt_eta)
          
@@ -3749,13 +3781,14 @@ module RROA_TD
                end do
             end do
          end do
-      end do
+      end do time
       !$OMP END DO
       deallocate(eta,zeta,zeta_p,Fi,Bmat,aa,bb,abia)
-      deallocate(x_fc_fc,jt_eta)
+      deallocate(x_fc_fc)
+      if(.not.ray)deallocate(jt_eta)
       if(ht)then
          deallocate(x_fc_ht,x_ht_fc,x_ht_ht)
-         deallocate(j_zeta,j_zeta_p)
+         if(.not.ray)deallocate(j_zeta,j_zeta_p)
          ! deallocate(jt_zeta_p_dip,dip_zeta_p_dip,jt_zeta_dip)
          ! deallocate(jt_zeta_p_mag,dip_zeta_p_mag,mag_zeta_p_dip,jt_zeta_mag)
          ! deallocate(jt_zeta_p_quad,dip_zeta_p_quad,quad_zeta_p_dip,jt_zeta_quad)
@@ -3763,12 +3796,13 @@ module RROA_TD
       if(ht2)then
          deallocate(x_fc_ht2,x_ht2_fc,x_ht_ht2,x_ht2_ht,x_ht2_ht2)
       end if
-      call deAllocateMats_T1T1(nq,mats_ap,ht,ht2)
-      call deAllocateMats_T1T1(nq,mats_G,ht,ht2)
-      call deAllocateMats_T1T1(nq,mats_Gc,ht,ht2)
-      call deAllocateMats_T1T2(nq,mats_A,ht,ht2)
-      call deAllocateMats_T2T1(nq,mats_Ac,ht,ht2)
-      
+      if(.not.ray)then
+         call deAllocateMats_T1T1(nq,mats_ap,ht,ht2)
+         call deAllocateMats_T1T1(nq,mats_G,ht,ht2)
+         call deAllocateMats_T1T1(nq,mats_Gc,ht,ht2)
+         call deAllocateMats_T1T2(nq,mats_A,ht,ht2)
+         call deAllocateMats_T2T1(nq,mats_Ac,ht,ht2)
+      end if
       !$OMP END PARALLEL
       write(output_unit,'(A5)')' 100%'
       flush(output_unit)
@@ -3786,6 +3820,16 @@ module RROA_TD
       res=A_a*(X_fc_fc*B_eta_b+J_zeta_p_B_b)
    end function Calc_FC_HT
    
+   pure function Calc_FC_HT_Ray(X0,A_a,B_eta_b)result(res)
+      double complex,intent(in) :: X0
+      
+      double precision,intent(in) :: A_a
+      double complex,intent(in) :: B_eta_b
+      
+      double complex :: res
+      res=A_a*x0*B_eta_b
+   end function Calc_FC_HT_Ray
+   
    pure function Calc_HT_FC(nq,X_fc_fc,B_b,A_eta_a,J_zeta_A_a)result(res)
       integer,intent(in) :: nq
       double complex,intent(in) :: X_fc_fc(nq)
@@ -3797,6 +3841,16 @@ module RROA_TD
       res=B_b*(X_fc_fc*A_eta_a+J_zeta_A_a)
    end function Calc_HT_FC
    
+   pure function Calc_HT_FC_Ray(X0,B_b,A_eta_a)result(res)
+      double complex,intent(in) :: X0
+      
+      double precision,intent(in) :: B_b
+      double complex,intent(in) :: A_eta_a
+      
+      double complex :: res
+      res=B_b*x0*A_eta_a
+   end function Calc_HT_FC_Ray
+   
    pure function Calc_HT_HT(nq,X_fc_fc,A_eta_a,B_eta_b,A_a_zeta_p_B_b,j_zeta_A_a,j_zeta_p_B_b)result(res)
       integer,intent(in) :: nq
       double complex,intent(in) :: X_fc_fc(nq)
@@ -3806,6 +3860,15 @@ module RROA_TD
       double complex :: res(nq)
       res=(A_eta_a*B_eta_b+A_a_zeta_p_B_b)*X_fc_fc+j_zeta_p_B_b*A_eta_a+j_zeta_A_a*B_eta_b
    end function Calc_HT_HT
+   
+   pure function Calc_HT_HT_Ray(x0,A_eta_a,B_eta_b,A_a_zeta_p_B_b)result(res)
+      double complex,intent(in) :: x0
+      
+      double complex,intent(in) :: A_eta_a,B_eta_b,A_a_zeta_p_B_b
+      
+      double complex :: res
+      res=x0*(a_eta_a*b_eta_b+A_a_zeta_p_B_b)
+   end function Calc_HT_HT_ray
    
    pure function Calc_FC_HT2(nq,X_fc_fc,A_a,eta_b2_eta,b2_zeta_f,j_zeta_p_b2_eta)result(res)
       integer,intent(in) :: nq
@@ -3934,12 +3997,12 @@ module RROA_TD
    end subroutine DeAllocateMats_T2T1
    
    !Workhorse
-   subroutine MakeMatrices(ht,ht2,nq,J,eta,zeta,zeta_p,tmss, &
+   subroutine MakeMatrices(ht,ht2,ray,nq,J,eta,zeta,zeta_p,tmss, &
       m_ap,m_G,m_Gc,m_A,m_Ac,j_zeta,j_zeta_p)
       integer,intent(in) :: nq
       type(TMS),intent(in) :: tmss
-      logical,intent(in) :: ht2,ht
-      double complex,intent(inout) :: j_zeta(nq,nq),j_zeta_p(nq,nq) !passed in work arrays
+      logical,intent(in) :: ht2,ht,ray
+      double complex,intent(inout) :: j_zeta(:,:),j_zeta_p(:,:) !passed in work arrays
       type(TD_SplitP_Mats_T1T1),intent(inout) :: m_ap,m_G,m_Gc
       type(TD_SplitP_Mats_T1T2),intent(inout) :: m_A
       type(TD_SplitP_Mats_T2T1),intent(inout) :: m_Ac
@@ -3967,13 +4030,15 @@ module RROA_TD
       
       
       if(.not.(ht.or.ht2))return
-      J_zeta=matmul(J,zeta)
-      j_zeta_p=matmul(J,zeta_p)
+      if(.not.Ray)then
+         J_zeta=matmul(J,zeta)
+         j_zeta_p=matmul(J,zeta_p)
+      end if
       
       do a=1,3 !dipole and magnet non-cross-terms
          dip_eta(a)=zd_dot(nq,eta,tmss%du(:,a))
          mag_eta(a)=zd_dot(nq,eta,tmss%dm(:,a))
-         call zd_mv_mult_sym_2times2(nq,j_zeta,j_zeta_p,tmss%du(:,a),tmss%dm(:,a),j_zeta_dip(:,a),j_zeta_p_dip(:,a),j_zeta_mag(:,a),j_zeta_p_mag(:,a))
+         if(.not.Ray)call zd_mv_mult_sym_2times2(nq,j_zeta,j_zeta_p,tmss%du(:,a),tmss%dm(:,a),j_zeta_dip(:,a),j_zeta_p_dip(:,a),j_zeta_mag(:,a),j_zeta_p_mag(:,a))
          zeta_p_dip(:,a)=matmul(zeta_p,tmss%du(:,a))
          zeta_p_mag(:,a)=matmul(zeta_p,tmss%dm(:,a))
          
@@ -4028,36 +4093,48 @@ module RROA_TD
                j_zeta_p_q2(:,:,b,a)=matmul(J,zeta_p_q2(:,:,b,a))
             end if
             quad_eta(b,a)=zd_dot(nq,eta,tmss%dq(:,b,a))
-            j_zeta_p_quad(:,b,a)=matmul(j_zeta_P,tmss%dq(:,b,a))
-            j_zeta_quad(:,b,a)=matmul(j_zeta_P,tmss%dq(:,b,a))
+            if(.not.Ray)then
+               j_zeta_p_quad(:,b,a)=matmul(j_zeta_P,tmss%dq(:,b,a))
+               j_zeta_quad(:,b,a)=matmul(j_zeta_P,tmss%dq(:,b,a))
+            end if
          end do
       end do
       
       !Terms that are not cross-terms
       m_ap%a_eta=dip_eta
       m_ap%b_eta=dip_eta
-      m_ap%j_zeta_p_b=j_zeta_p_dip
-      m_ap%j_zeta_a=j_zeta_dip
+      if(.not.Ray)then
+         m_ap%j_zeta_p_b=j_zeta_p_dip
+         m_ap%j_zeta_a=j_zeta_dip
+      end if
       
       m_G%a_eta=dip_eta
       m_G%b_eta=mag_eta
-      m_G%j_zeta_p_b=j_zeta_p_mag
-      m_G%j_zeta_a=j_zeta_dip
+      if(.not.Ray)then
+         m_G%j_zeta_p_b=j_zeta_p_mag
+         m_G%j_zeta_a=j_zeta_dip
+      end if
       
       m_Gc%b_eta=dip_eta
       m_Gc%a_eta=-mag_eta
-      m_Gc%j_zeta_p_b=j_zeta_p_dip
-      m_Gc%j_zeta_a=-j_zeta_mag
+      if(.not.Ray)then
+         m_Gc%j_zeta_p_b=j_zeta_p_dip
+         m_Gc%j_zeta_a=-j_zeta_mag
+      end if
       
       m_A%a_eta=dip_eta
       m_A%b_eta=quad_eta
-      m_A%j_zeta_a=j_zeta_dip
-      m_A%j_zeta_p_b=j_zeta_p_quad
+      if(.not.Ray)then
+         m_A%j_zeta_a=j_zeta_dip
+         m_A%j_zeta_p_b=j_zeta_p_quad
+      end if
       
       m_Ac%a_eta=quad_eta
       m_Ac%b_eta=dip_eta
-      m_Ac%j_zeta_a=j_zeta_quad
-      m_Ac%j_zeta_p_b=j_zeta_p_dip
+      if(.not.Ray)then
+         m_Ac%j_zeta_a=j_zeta_quad
+         m_Ac%j_zeta_p_b=j_zeta_p_dip
+      end if
       
       if(ht2)then
          m_ap%eta_a2_eta=eta_d2_eta
@@ -7151,14 +7228,14 @@ module RROA
                      check,use_gauss,write_excm,write_ten,write_inv,write_fc_sys,write_fcarr,norm_sp,UnCoup_lim,uncoup_modes_maxval,w_ps,ignore_ps,sel_rules, &
                      sel_rules2,correct_gr_freqs,add_pol_coeff,output_moments,output_polars,ignore_imag_modes,output_polContrs,alphafc,wr_is_e00, &
                      spectrum_temp,doModes,trs,fundLeadCount,TD_approach,td_N_points,td_tmax,td_fs,td_sparse,td_alt,td_fixphase,J_tol,td_batch_n,trueground,write_corrf,write_fft_cf,num_integ, &
-                     norm_fft,correctPhaseX,correctPhaseX_abs,interpolateFFT,wexc_adapt,w_ad_zero,evcd,cpl,contr)
+                     norm_fft,correctPhaseX,correctPhaseX_abs,interpolateFFT,wexc_adapt,w_ad_zero,evcd,cpl,contr,ray)
       integer td_n,nexc
       type(ExcState),target :: tds(td_n)
       type(Transition_R),allocatable :: trs(:)
       type(Transition_R),allocatable :: trs_fund(:,:)
       type(Transition_R) :: cur_tr
       integer :: trs_c,trs_i,trs_fund_c,fundleadcount
-      logical correct_gr_freqs,output_polContrs,fundLead,wexc_adapt
+      logical correct_gr_freqs,output_polContrs,fundLead,wexc_adapt,ray
       logical write_corrf,write_fft_cf,num_integ,correctPhaseX,correctPhaseX_abs,interpolateFFT
       
       logical :: TD_approach,contr(9),td_alt,td_fixphase
@@ -7469,31 +7546,34 @@ module RROA
                else
                   batch_n=td_batch_n
                end if
+               if(Ray)batch_n=1
                allocate(batch(batch_n),polars(batch_n))
                
                batch=0
                do ii = 1,batch_n
                   iii=(i-1)*td_batch_n+ii
-                  batch(ii)=iii+v_start
+                  if(.not.ray)batch(ii)=iii+v_start
                   write(output_unit,'(1X,I3)',advance='no')batch(ii)
                   !call Polar_new_nexc(polars(ii),nexc)
                end do
                write(output_unit,*)
                flush(output_unit)
-               polars=DoRROA_TD_k(0,nq,batch,batch_n,td%wg,td%we,td%u_gr,td%m_gr,td%q_gr,td%du_gr,td%dm_gr,td%dq_gr,td%u_ex,td%m_ex,td%q_ex,td%du_ex,td%dm_ex,td%dq_ex,td%du2_ex,td%dm2_ex,td%dq2_ex, &
+               polars=DoRROA_TD_k(0,nq,ray,batch,batch_n,td%wg,td%we,td%u_gr,td%m_gr,td%q_gr,td%du_gr,td%dm_gr,td%dq_gr,td%u_ex,td%m_ex,td%q_ex,td%du_ex,td%dm_ex,td%dq_ex,td%du2_ex,td%dm2_ex,td%dq2_ex, &
                v_td,gamma_gr,kgk,jgj,td%J,td%K,td%J_i,td%K_i,td%gamma,td%theta,td%eps,td%e_00,td_N_points,td_tmax,td_fs,td_wmax,td_sparse,td_alt,J_nz,nz, &
                ht,ht2,td_fixphase,[td%TMExpand(1:1)=='G',td%TMExpand(2:2)=='G'],st,contr,n_thr,wexc,nexc,br_order,8,write_corrf,write_fft_cf,num_integ,norm_fft,correctPhaseX,correctPhaseX_abs,interpolateFFT,wexc_adapt,w_ad_zero)
-               ! do ii = 1,batch_n
-                  ! I dunno, TD spectra for Br2 molecule had higher intensity but same excitation wavelength distribution.
-                  ! This magic value is the division of the two intensities.
-                  ! The intensities still differ quite a lot off-resonance, but in resonance they are pretty well fit.
-                  ! polars(ii)=polars(ii)*(1d0/2.25581969334231)
-               ! end do
+
                
                a_arr=0d0
                do ii = 1,batch_n
-                  v3_pos=[batch(ii)]
-                  w3=td%wg(batch(ii))
+                  if(Ray)then
+                     v3_pos=[0]
+                     w3=0
+                     v3_class=0
+                  else
+                     v3_pos=[batch(ii)]
+                     w3=td%wg(batch(ii))
+                     v3_class=1
+                  end if
                   str_v3=FC2Str_new(v3,v3_pos,v3_class,.true.,.false.)
                   curPolar=polars(ii)
                   curPolar%ap=conjg(curPolar%ap)
@@ -10076,7 +10156,7 @@ program fcov
    logical :: gr_exp = .false.,num_integ=.true.,norm_fft=.true.,elpol_exc=.false.
    logical :: correctPhaseX=.true.,correctPhaseX_abs=.false.,interpolateFFT=.false.
    logical :: wexc_adapt=.false.,SE_is_SG=.false.,elpol_grad=.true.,elpol_only=.false.
-   logical :: w_ad_zero=.false.,td_alt=.false.,td_fixphase=.true.
+   logical :: w_ad_zero=.false.,td_alt=.false.,td_fixphase=.true.,ray=.false.
    
    !In rroa_td_num, to get the same ROA sign as experiment and Cheeseman for Co(III)EDDS complex, I need to switch the signs on the magnetic dipoles. 
    !It does not make any sense, and I am not certain about it but whatever.
@@ -10458,7 +10538,7 @@ program fcov
                   fcarrcheck,use_gauss,write_excm,write_ten,write_inv,write_fc_sys,write_fcarr,.false.,uncoup_lim,uncoup_modes_maxval,w_ps,ignore_ps,sel_rules,sel_rules2,correct_gr_freqs, &
                   add_pol_coeff,output_moments,output_polars,ignore_imag_modes,output_polContrs,AlphaFC,wr_is_e00,spectrum_temp,doModes,trs,fundLeadCount, &
                   td_approach,td_n_points,td_tmax,td_fs,td_sparse,td_alt,td_fixphase,td_J_tol,td_batch_n,td_trueground,write_corrf,write_fft_cf,num_integ,norm_fft,correctPhaseX,correctPhaseX_abs,interpolateFFT,wexc_adapt,w_ad_zero, &
-                  evcd,cpl,contr)
+                  evcd,cpl,contr,ray)
       write(output_unit,*)'Finished RROA'
    end if
    
@@ -11113,6 +11193,8 @@ program fcov
                ! 223 continue
                ! backspace(77)
                ! switchPhase_c=count(switchPhase/=0)
+            case('RAYLEIGH')
+               ray=.true.
             case('TERMS')
                contr=.false.
                buf=0
