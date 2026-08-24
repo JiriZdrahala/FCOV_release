@@ -1671,7 +1671,7 @@ module util
     end subroutine rd_casscf_orca
    
    
-   subroutine rd_td_new(unitt,filename,nstates,z,r,nat,u,v,m,q,e_gr,ens,mult_tm,dnst,coeffs)
+   subroutine rd_td_new(unitt,filename,nstates,z,r,nat,u,v,m,q,e_gr,ens,mult_tm,dnst,coeffs,cssw)
       character(*) filename
       character(80),allocatable :: splitt(:)
       integer unitt,nstates,nat,i,ii,sizee,j,k,l,idx,istate,dnst,nstates_r,td,bufi
@@ -1750,10 +1750,13 @@ module util
          ens_h(nstates_r)=e
          if(.not.get_coeffs)goto 30
          read(unitt,'(A80)')s80
-         do while(index(s80,'->')>0)
-            read(s80,*)from_orb,bufc,to_orb,vall
+         idx=index(s80,'->')
+         do while(idx>0)
+            read(s80(1:idx-1),*)from_orb
+            read(s80(idx+2:),*)to_orb,vall
             coeffs_h(from_orb,to_orb,nstates_r)=vall
             read(unitt,'(A80)')s80
+            idx=index(s80,'->')
          end do
       elseif(s80(2:31)=='Electronic transition elements')then
          if(dnst<=0)dnst=nstates_r
@@ -1762,7 +1765,7 @@ module util
          ens=ens_h(1:dnst)
          if(compare_coeffs .and. cssw)then
             coeffs_cur=coeffs_h(:,:,1:dnst)
-         elseif(.not.compare_coeffs .and. cssw)
+         elseif(.not.compare_coeffs .and. cssw)then
             coeffs=coeffs_h(:,:,1:dnst)
          end if
          ! if(allocated(tdcs))deallocate(tdcs)
@@ -1868,7 +1871,7 @@ module util
       m=m*mult_tm(3)
       
       
-      if(compare_coeffs)then
+      if(compare_coeffs .and. cssw)then
          allocate(ovmat(dnst,dnst))
          ovmat=0
          do i = 1,dnst
@@ -1881,7 +1884,8 @@ module util
       end if
       
       !deallocate(tdc_cur,tdcs_h)
-      deallocate(ens_h,coeffs_h)
+      deallocate(ens_h)
+      if(cssw.and.allocated(coeffs_cur))deallocate(coeffs_cur)
    end subroutine rd_td_new
    
    function MatOv(a,b,n)result(res)

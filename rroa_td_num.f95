@@ -30,7 +30,7 @@ program rroa_td_num
    logical :: rroa_spr_do(ns0),spectrum_temp=.true.,use_gauss=.false.,derm=.false.
    logical :: usea=.true.,useac=.true.,useg=.true.,usegc=.true.,st=.true.,wrpol=.true.,wrpolq=.false.
    logical :: stateSwitchChec=.false.,wexc_adapt=.false.,isOrca=.false.,analy=.false.,gene=.false.,corren=.false.
-   logical :: primQ=.false.
+   logical :: primQ=.false.,weird=.false.
    type(TD_coeff_arr),allocatable :: tdcs0(:),tdcs_t(:),tdcs(:,:)
    logical,allocatable :: ign_state(:)
    
@@ -41,7 +41,7 @@ program rroa_td_num
    double precision,allocatable :: grad_gr(:),grad_ex(:)
    double precision,allocatable :: grad_gr_nm(:),grad_ex_nm(:,:)
    double precision,allocatable :: smat(:,:),wexc(:),wexc_nm(:),wexc_h(:)
-   double precision,allocatable :: rroa_spr_temp(:,:,:),rroa_spr(:,:,:)
+   double precision,allocatable :: rroa_spr_temp(:,:,:),rroa_spr(:,:,:),coeffs(:,:,:)
    double complex,allocatable :: ap_sum(:,:,:),G_sum(:,:,:),A_sum(:,:,:,:)
    double complex,allocatable :: ap_sum_an(:,:,:),G_sum_an(:,:,:),A_sum_an(:,:,:,:)
    double precision :: sum_sq(3,3)
@@ -94,6 +94,8 @@ program rroa_td_num
       call GET_COMMAND_ARGUMENT(i,s80)
       if(index(s80,'dnst=')>0)then
          read(s80(6:),*)dnst
+      elseif(index(s80,'nograd')>0)then
+         grad=.false.
       end if
    end do
    
@@ -106,7 +108,7 @@ program rroa_td_num
       q0=0d0
       v0=0d0
    else
-      call rd_td_new(77,s80,nstates,z,r0,nat,u0,v0,m0,q0,e0_gr,ens0,mult_tm,dnst,primq)
+      call rd_td_new(77,s80,nstates,z,r0,nat,u0,v0,m0,q0,e0_gr,ens0,mult_tm,dnst,coeffs,.not.grad)
    end if
    
    
@@ -115,76 +117,65 @@ program rroa_td_num
       call GET_COMMAND_ARGUMENT(i,s80)
       if(index(s80,'vel')>0)then
          vel=.true.
-      elseif(index(s80,'noaten')>0)then
+      elseif(index(s80,'noaten')>0)then !ignore the quadrupole ROA tensors
          usea=.false.
          useac=.false.
-      elseif(index(s80,'nogten')>0)then
+      elseif(index(s80,'nogten')>0)then !ignore the magnetic ROA tensors
          useg=.false.
          usegc=.false.
-      elseif(index(s80,'overtones')>0)then
+      elseif(index(s80,'overtones')>0)then !Do overtones, not implemented but still calculable from central finite-difference
          overs=.true.
-      elseif(index(s80,'combinations')>0)then
+      elseif(index(s80,'combinations')>0)then !do combinations, not implemented, this requires two steps in each coordinate so it is kinda computationally heavy and maybe not worth it.
          combs=.true.
-      elseif(index(s80,'dnst')>0)then
+      elseif(index(s80,'dnst')>0)then !Do Number of States, number of states to include in the SOS expression, i.e. 6 means include lowest 6 states
          continue
-      elseif(index(s80,'analyitical')>0)then
+      elseif(index(s80,'analyitical')>0)then !deprecated
          analy=.true.
-      elseif(index(s80,'primq')>0)then
+      elseif(index(s80,'primq')>0)then !deprecated
          primq=.true.
-      elseif(index(s80,'doat=')>0)then
+      elseif(index(s80,'doat=')>0)then !set polarizabilities to zero starting from atom number "doat+1", this is used to remove water contribution to RROA spectra
          read(s80(6:),*)doat
-      elseif(index(s80,'nograd')>0)then
-         if(index(s80,'=')>0)then
-            strs=splitString(s80(8:),80,',')
-            allocate(nograds(size(strs,dim=1)))
-            do ii = 1,size(strs,dim=1)
-               read(strs(ii),*)nograds(ii)
-            end do
-            grad=.false.
-         else
-            grad=.false.
-            allocate(nograds(nstates))
-            do ii = 1,nstates
-               nograds(ii)=ii
-            end do
-         end if
-      elseif(index(s80,'nost')>0)then
+      elseif(index(s80,'nograd')>0)then !Do not differentiate polarizability w.r.t nuclear coordinate, differentiate the transition dipole moment multiplicant (numerator in the SOS expression) instead
+         grad=.false.
+      elseif(index(s80,'nost')>0)then !Do not include the second (non-resonant) term in Raman/RROA
          st=.false.
-      elseif(index(s80,'statesw')>0)then
+      elseif(index(s80,'weird')>0)then !Weird denominator, idea of Peter ... ...
+         weird=.true.
+      elseif(index(s80,'statesw')>0)then !Check for states switching, correct then, not implemented, polarizabilities are resistant to state switching in numerical differentiation anyway
          stateSwitchChec=.true.
-      elseif(index(s80,'wrpolq')>0)then
+      elseif(index(s80,'wrpolq')>0)then !write FILE.POLARS.Q file, the transition tensors in normal mode coordinates
          wrpolq=.true.
-      elseif(index(s80,'encorr')>0)then
+      elseif(index(s80,'encorr')>0)then !Correct the energies from encorr file, deprecated, originally used to hack CAS-SCF from Orca into here
          corren=.true.
-      elseif(index(s80,'gene=')>0)then
+      elseif(index(s80,'gene=')>0)then !generate files for option "encorr"
          gene=.true.
          read(s80(6:),*)gene_end
-      elseif(index(s80,'adapt')>0)then
+      elseif(index(s80,'adapt')>0)then !adaptive frequencies, see the paper by Petr Bour, probably not useful
          wexc_adapt=.true.
-      elseif(index(s80,'deriv=')>0)then
+      elseif(index(s80,'deriv=')>0)then !output the transition moment derivatives w.r.t. nuclear coordinate for the desired state, susceptible to state switching in numerical differentiation
          read(s80(7:),*)output_deriv
-      elseif(index(s80,'theta=')>0)then
+      elseif(index(s80,'theta=')>0)then !Gaussian broadening of the excitation profile, deprecated, done through numerical convolution (i.e. Voigt profile, unapproximated therefore expensive)
          read(s80(7:),*)theta
-      elseif(index(s80,'gamma=')>0)then
+      elseif(index(s80,'gamma=')>0)then !Lorentzian broadening of the excitation profile, standard
          read(s80(7:),*)gamma
-      elseif(index(s80,'steps=')>0)then
+      elseif(index(s80,'steps=')>0)then !for Gaussian broadening, deprecated
          read(s80(7:),*)steps
-      elseif(index(s80,'max_t=')>0)then
+      elseif(index(s80,'max_t=')>0)then  !for Gaussian broadening, deprecated
          read(s80(7:),*)max_t
-      elseif(index(s80,'fwhm=')>0)then
+      elseif(index(s80,'fwhm=')>0)then !spectral linewidth in cm-1 when generating spectra
          read(s80(6:),*)fwhm
-      elseif(index(s80,'wst=')>0)then
+      elseif(index(s80,'wst=')>0)then !I forgor
          read(s80(5:),*)buf
          ii=index(s80,':')
          read(s80(5:ii-1),*)wst_i
          read(s80(ii+1:),*)wst_w
-      elseif(index(s80,'igno=')>0)then
+      elseif(index(s80,'igno=')>0)then !ignore the desired state, originally used to sum the vibronic polarizability into the rest of polarizability contributions, susceptible to state switching
          strs=splitString(s80(6:),80,',')
          allocate(igns(size(strs,dim=1)))
          do ii = 1,size(strs,dim=1)
             read(strs(ii),*)igns(ii)
          end do
-      elseif(index(s80,'dfac=')>0)then
+      elseif(index(s80,'dfac=')>0)then !I forgor, does not seem to be used
          read(s80(6:),*)dfac
       else
          write(output_unit,*)'Unknown option ',TR(s80)
@@ -296,7 +287,7 @@ program rroa_td_num
       call rd_casscf_orca(78,filename,dnst,nat,ens_t,r_t,z_t,u_t,m_t)
       nstates2=dnst
    else
-      call rd_td_new(78,filename,nstates2,z_t,r_t,nat,u_t,v_t,m_t,q_t,e,ens_t,mult_tm,dnst,primq)
+      call rd_td_new(78,filename,nstates2,z_t,r_t,nat,u_t,v_t,m_t,q_t,e,ens_t,mult_tm,dnst,coeffs,.not.grad)
    end if
    if(wst_i/=0)then
       ens_t(wst_i)=1d7/(1d7/(ens_t(wst_i)*au_2_cm)+wst_w)*cm_2_au
@@ -554,7 +545,7 @@ program rroa_td_num
    !$OMP PRIVATE(polars_buf,polars_buf2) &
    !$OMP PRIVATE(i,j,k,sqrt_w) &
    !$OMP SHARED(n3,step,nq,ifile,u,m,q,ens,nstates,wexc,nexc,gamma,wg,polars,d_pol,wexc_adapt) &
-   !$OMP SHARED(st,pols0,ens0,u0,m0,v0,q0,ign_state,grad,smat,cen,overs,d2_pol,combs,doat)
+   !$OMP SHARED(st,pols0,ens0,u0,m0,v0,q0,ign_state,grad,smat,cen,overs,d2_pol,combs,doat,weird)
    allocate(polars_buf(nexc,ifile),polars_buf2(nexc))
    
    
@@ -568,11 +559,11 @@ program rroa_td_num
          polars(:,1,i)=polars_buf2
       else
          !if(.not.cen .or. overs)then
-         call TDPolar(u0,m0,q0,ens0,nstates,ign_state,wexc,nexc,gamma,wg(i)*cm_2_au,pols0(:,i),st,wexc_adapt)
+         call TDPolar(u0,m0,q0,ens0,nstates,ign_state,wexc,nexc,gamma,wg(i)*cm_2_au,pols0(:,i),st,wexc_adapt,weird)
          !end if
          
          do k = 1,ifile
-            call TDPolar(u(:,:,k),m(:,:,k),q(:,:,:,k),ens(:,k),nstates,ign_state,wexc,nexc,gamma,wg(i)*cm_2_au,polars_buf2,st,wexc_adapt)
+            call TDPolar(u(:,:,k),m(:,:,k),q(:,:,:,k),ens(:,k),nstates,ign_state,wexc,nexc,gamma,wg(i)*cm_2_au,polars_buf2,st,wexc_adapt,weird)
             polars_buf(:,k)=polars_buf2
          end do
          polars(:,:,i)=polars_buf
@@ -834,13 +825,13 @@ program rroa_td_num
    end function fun_st_faster
       
    
-   subroutine TDPolar(u,m,q,ens,nst,ign_state,wexc,nexc,gamma,wg,res,st,wexc_adapt)
+   subroutine TDPolar(u,m,q,ens,nst,ign_state,wexc,nexc,gamma,wg,res,st,wexc_adapt,weird)
       integer nst,i,nexc,a,b,c,iexc
       double precision u(3,nst),m(3,nst),q(3,3,nst),ens(nst),wexc(nexc),wexc_cur,gamma,wg
       double precision wr
       double complex f,f2
       type(Polar) res(nexc)
-      logical st,ffr,wexc_adapt
+      logical st,ffr,wexc_adapt,weird
       logical,allocatable :: ign_state(:)
       
       do iexc=1,nexc
@@ -860,9 +851,15 @@ program rroa_td_num
                f2=-2*wexc_cur/(ens(i)**2-wexc_cur**2)
                ffr=.true.
             else !in resonance, Lorentzian, currently accepted approach (2026)
-               f=1d0/(ens(i)-wexc_cur-iu*gamma)
-               wr=(wexc_cur-wg)
-               if(st)f2=1d0/(ens(i)+(wexc_cur-wg)+iu*gamma)
+               if(weird)then
+                  f=1d0/sqrt((ens(i)-wexc_cur)**2+gamma**2)
+                  wr=(wexc_cur-wg)
+                  if(st)f2=1d0/((ens(i)+wexc_cur)**2+gamma**2)
+               else
+                  f=1d0/(ens(i)-wexc_cur-iu*gamma)
+                  wr=(wexc_cur-wg)
+                  if(st)f2=1d0/(ens(i)+(wexc_cur-wg)+iu*gamma)
+               end if
             end if
             if(ffr)then
                do a = 1,3
@@ -1013,39 +1010,35 @@ program rroa_td_num
       end if
    end subroutine TDPolar_derivs
    
-   subroutine TDPolar_derivsQ(iq,ist,nq,n3,nst,a,b,c,duq_1,duq_2,dqu_1,dqu_2,u_all,q_all,u0,q0,step,cen,nfiles,smat)
+   subroutine TDPolar_derivsQ(iq,ist,nq,n3,nst,a,b,c,duq,dqu,u_all,q_all,u0,q0,step,cen,nfiles,smat)
       double precision,intent(in) :: u_all(3,nst,nfiles),q_all(3,3,nst,nfiles),u0(3,nst),q0(3,3,nst)
       double precision,intent(in) :: step,smat(n3,nq)
       integer,intent(in) :: nfiles,ist,a,b,c,n3,nst,nq,iq
       logical,intent(in) :: cen
-      double precision,intent(out) :: duq_1,duq_2,dqu_1,dqu_2
+      double precision,intent(out) :: duq,dqu
       double precision :: dsdri !d(something)/dr
       integer i
       
-      duq_1=0d0
-      duq_2=0d0
-      dqu_1=0d0
-      dqu_2=0d0
+      duq=0d0
+      dqu=0d0
       if(cen)then
          do i = 1,n3
             dsdri=cendiff_r(u_all(a,ist,i)*q_all(b,c,ist,i),u_all(a,ist,i+n3)*q_all(b,c,ist,i+n3),step)
-            duq_1=duq_1+smat(i,iq)*dsdri
+            duq=duq+smat(i,iq)*dsdri
             
             dsdri=cendiff_r(q_all(b,c,ist,i)*u_all(a,ist,i),q_all(b,c,ist,i+n3)*u_all(a,ist,i+n3),step)
-            dqu_1=dqu_1+smat(i,iq)*dsdri
+            dqu=dqu+smat(i,iq)*dsdri
          end do
       else
          do i = 1,n3
             !<n|u_a|j>*<j|u_b|n>
             dsdri=diff_r(u0(a,ist)*q0(b,c,ist),u_all(a,ist,i)*q_all(b,c,ist,i),step)
-            duq_1=duq_1+smat(i,iq)*dsdri
+            duq=duq+smat(i,iq)*dsdri
             
             dsdri=diff_r(q0(b,c,ist)*u0(a,ist),q_all(b,c,ist,i)*u_all(a,ist,i),step)
-            dqu_1=dqu_1+smat(i,iq)*dsdri
+            dqu=dqu+smat(i,iq)*dsdri
          end do
       end if
-      duq_2=duq_1
-      dqu_2=dqu_1
    end subroutine TDPolar_derivsQ
    
 
