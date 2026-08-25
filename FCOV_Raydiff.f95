@@ -57,7 +57,7 @@ program FCOV_Raydiff
    end do
    
    do i = 1,nq
-      polars_q(i)=Car2NM_Pol1(n3,nq,i,polars_R,smat)
+      polars_q(i)=Car2NM_Pol1(n3,nq,i,polars_R,smat)*(1d0/sqrt(2d0*wg(i)*cm_2_au))
    end do
    
    call WritePolars(.true.,nq,0d0,55,wexc,polars_q,wg*cm_2_au,.true.,.true.)
