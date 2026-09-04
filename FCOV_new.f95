@@ -2998,6 +2998,291 @@ module FFT
    end function GetSeq0
 end module FFT
 
+module RROA_TD_corrf
+   use constants
+   use iso_fortran_env
+   contains
+   
+   !AI GENERATED, pls check validity
+   pure function Calc_FC_FC_F(nq, X_fc_fc, eta_F_eta, Tr_F_zeta, J_zeta_p_F_eta) result(res)
+      integer, intent(in) :: nq
+      double complex, intent(in) :: eta_F_eta, Tr_F_zeta
+      double complex, intent(in) :: X_fc_fc(nq), J_zeta_p_F_eta(nq)
+      double complex :: res(nq)
+      
+      res = X_fc_fc * (eta_F_eta + Tr_F_zeta) + 2.0d0 * J_zeta_p_F_eta
+   end function Calc_FC_FC_F
+      
+   pure function Calc_FC_HT_F(nq,A_a, X_fc_fc, B_eta_b, eta_F_eta, Tr_F_zeta, eta_F_zeta_B_b, &
+                              J_zeta_p_B_b, J_zeta_p_F_eta, J_zeta_p_F_zeta_B_b) result(res)
+      integer, intent(in) :: nq
+      double precision,intent(in) :: A_a
+      double complex, intent(in) :: B_eta_b, eta_F_eta, Tr_F_zeta, eta_F_zeta_B_b
+      double complex, intent(in) :: X_fc_fc(nq), J_zeta_p_B_b(nq), J_zeta_p_F_eta(nq), J_zeta_p_F_zeta_B_b(nq)
+      double complex :: res(nq)
+      
+      res = A_a*(X_fc_fc * (B_eta_b * (eta_F_eta + Tr_F_zeta) + 2.0d0 * eta_F_zeta_B_b) &
+          + J_zeta_p_B_b * (eta_F_eta + Tr_F_zeta) &
+          + 2.0d0 * J_zeta_p_F_eta * B_eta_b &
+          + 2.0d0 * J_zeta_p_F_zeta_B_b)
+   end function Calc_FC_HT_F
+      
+   pure function Calc_HT_FC_F(nq,B_b, X_fc_fc, A_eta_a, eta_F_eta, Tr_F_zeta, A_a_zeta_p_F_eta, &
+                              J_zeta_A_a, J_zeta_p_F_eta, J_zeta_p_F_zeta_p_A_a) result(res)
+      integer, intent(in) :: nq
+      double precision,intent(in) :: B_b
+      double complex, intent(in) :: A_eta_a, eta_F_eta, Tr_F_zeta, A_a_zeta_p_F_eta
+      double complex, intent(in) :: X_fc_fc(nq), J_zeta_A_a(nq), J_zeta_p_F_eta(nq), J_zeta_p_F_zeta_p_A_a(nq)
+      double complex :: res(nq)
+      
+      res = B_b*(X_fc_fc * (A_eta_a * (eta_F_eta + Tr_F_zeta) + 2.0d0 * A_a_zeta_p_F_eta) &
+          + J_zeta_A_a * (eta_F_eta + Tr_F_zeta) &
+          + 2.0d0 * J_zeta_p_F_eta * A_eta_a &
+          + 2.0d0 * J_zeta_p_F_zeta_p_A_a)
+   end function Calc_HT_FC_F
+    
+   pure function Calc_HT_HT_F(nq, X_fc_fc, A_eta_a, B_eta_b, eta_F_eta, Tr_F_zeta, &
+                              eta_F_zeta_B_b, A_a_zeta_p_F_eta, A_a_zeta_p_B_b, A_a_zeta_p_F_zeta_B_b, &
+                              J_zeta_p_F_zeta_B_b, J_zeta_p_F_zeta_p_A_a, J_zeta_p_F_eta, J_zeta_A_a, J_zeta_p_B_b) result(res)
+      integer, intent(in) :: nq
+      double complex, intent(in) :: A_eta_a, B_eta_b, eta_F_eta, Tr_F_zeta
+      double complex, intent(in) :: eta_F_zeta_B_b, A_a_zeta_p_F_eta, A_a_zeta_p_B_b, A_a_zeta_p_F_zeta_B_b
+      double complex, intent(in) :: X_fc_fc(nq), J_zeta_p_F_zeta_B_b(nq), J_zeta_p_F_zeta_p_A_a(nq)
+      double complex, intent(in) :: J_zeta_p_F_eta(nq), J_zeta_A_a(nq), J_zeta_p_B_b(nq)
+      double complex :: res(nq)
+      
+      res = X_fc_fc * ( A_eta_a * B_eta_b * (eta_F_eta + Tr_F_zeta) &
+                      + 2.0d0 * A_eta_a * eta_F_zeta_B_b &
+                      + 2.0d0 * B_eta_b * A_a_zeta_p_F_eta &
+                      + A_a_zeta_p_B_b * (eta_F_eta + Tr_F_zeta) &
+                      + 2.0d0 * A_a_zeta_p_F_zeta_B_b ) &
+          + 2.0d0 * A_eta_a * J_zeta_p_F_zeta_B_b &
+          + 2.0d0 * B_eta_b * J_zeta_p_F_zeta_p_A_a &
+          + 2.0d0 * A_eta_a * B_eta_b * J_zeta_p_F_eta &
+          + 2.0d0 * A_a_zeta_p_B_b * J_zeta_p_F_eta &
+          + 2.0d0 * eta_F_zeta_B_b * J_zeta_A_a &
+          + (eta_F_eta + Tr_F_zeta) * A_eta_a * J_zeta_p_B_b &
+          + (eta_F_eta + Tr_F_zeta) * B_eta_b * J_zeta_A_a &
+          + 2.0d0 * A_a_zeta_p_F_eta * J_zeta_p_B_b
+   end function Calc_HT_HT_F   
+   
+   pure function Calc_FC_FC_G2(nq, X_fc_fc, eta_G_sq, G_zeta_G, eta_G, J_zeta_p_G) result(res)
+      integer, intent(in) :: nq
+      double complex, intent(in) :: eta_G_sq, G_zeta_G, eta_G
+      double complex, intent(in) :: X_fc_fc(nq), J_zeta_p_G(nq)
+      double complex :: res(nq)
+      
+      res = X_fc_fc * (eta_G_sq + G_zeta_G) + 2.0d0 * eta_G * J_zeta_p_G
+   end function Calc_FC_FC_G2
+      
+   pure function Calc_FC_HT_G2(nq,a_a, X_fc_fc, B_eta_b, eta_G_sq, G_zeta_G, eta_G, G_zeta_B_b, &
+                               J_zeta_p_B_b, J_zeta_p_G) result(res)
+      integer, intent(in) :: nq
+      double precision,intent(in) :: a_a
+      double complex, intent(in) :: B_eta_b, eta_G_sq, G_zeta_G, eta_G, G_zeta_B_b
+      double complex, intent(in) :: X_fc_fc(nq), J_zeta_p_B_b(nq), J_zeta_p_G(nq)
+      double complex :: res(nq)
+      
+      res = a_a*(X_fc_fc * (B_eta_b * (eta_G_sq + G_zeta_G) + 2.0d0 * eta_G * G_zeta_B_b) &
+          + J_zeta_p_B_b * (eta_G_sq + G_zeta_G) &
+          + 2.0d0 * J_zeta_p_G * eta_G * B_eta_b &
+          + 2.0d0 * J_zeta_p_G * G_zeta_B_b)
+   end function Calc_FC_HT_G2
+      
+   pure function Calc_HT_FC_G2(nq,B_b, X_fc_fc, A_eta_a, eta_G_sq, G_zeta_G, eta_G, G_zeta_p_A_a, &
+                               J_zeta_A_a, J_zeta_p_G) result(res)
+      integer, intent(in) :: nq
+      double precision,intent(in) :: B_b
+      double complex, intent(in) :: A_eta_a, eta_G_sq, G_zeta_G, eta_G, G_zeta_p_A_a
+      double complex, intent(in) :: X_fc_fc(nq), J_zeta_A_a(nq), J_zeta_p_G(nq)
+      double complex :: res(nq)
+      
+      res = B_b*(X_fc_fc * (A_eta_a * (eta_G_sq + G_zeta_G) + 2.0d0 * eta_G * G_zeta_p_A_a) &
+          + J_zeta_A_a * (eta_G_sq + G_zeta_G) &
+          + 2.0d0 * J_zeta_p_G * eta_G * A_eta_a &
+          + 2.0d0 * J_zeta_p_G * G_zeta_p_A_a)
+   end function Calc_HT_FC_G2
+    
+   pure function Calc_HT_HT_G2(nq, X_fc_fc, A_eta_a, B_eta_b, eta_G_sq, G_zeta_G, eta_G, &
+                               G_zeta_B_b, G_zeta_p_A_a, A_a_zeta_p_B_b, &
+                               J_zeta_p_G, J_zeta_A_a, J_zeta_p_B_b) result(res)
+      integer, intent(in) :: nq
+      double complex, intent(in) :: A_eta_a, B_eta_b, eta_G_sq, G_zeta_G, eta_G
+      double complex, intent(in) :: G_zeta_B_b, G_zeta_p_A_a, A_a_zeta_p_B_b
+      double complex, intent(in) :: X_fc_fc(nq), J_zeta_p_G(nq), J_zeta_A_a(nq), J_zeta_p_B_b(nq)
+      double complex :: res(nq)
+      
+      res = X_fc_fc * ( A_eta_a * B_eta_b * (eta_G_sq + G_zeta_G) &
+                      + 2.0d0 * A_eta_a * G_zeta_B_b * eta_G &
+                      + 2.0d0 * B_eta_b * G_zeta_p_A_a * eta_G &
+                      + A_a_zeta_p_B_b * (eta_G_sq + G_zeta_G) &
+                      + 2.0d0 * G_zeta_p_A_a * G_zeta_B_b ) &
+          + 2.0d0 * A_eta_a * G_zeta_B_b * J_zeta_p_G &
+          + 2.0d0 * B_eta_b * G_zeta_p_A_a * J_zeta_p_G &
+          + 2.0d0 * A_eta_a * B_eta_b * eta_G * J_zeta_p_G &
+          + 2.0d0 * A_a_zeta_p_B_b * eta_G * J_zeta_p_G &
+          + 2.0d0 * eta_G * G_zeta_B_b * J_zeta_A_a &
+          + (eta_G_sq + G_zeta_G) * A_eta_a * J_zeta_p_B_b &
+          + (eta_G_sq + G_zeta_G) * B_eta_b * J_zeta_A_a &
+          + 2.0d0 * G_zeta_p_A_a * eta_G * J_zeta_p_B_b
+   end function Calc_HT_HT_G2
+   
+   !AI GENERATED ABOVE, pls check validity
+   
+   
+   pure function Calc_FC_FC_G1(nq,X_fc_fc,g_eta,j_zeta_p_g)result(res)
+      integer,intent(in) :: nq
+      double complex,intent(in) :: X_fc_fc(nq),g_eta,J_zeta_p_g(nq)
+      double complex :: res(nq)
+      
+      res=(X_fc_fc*g_eta+j_zeta_p_g)
+   end function Calc_FC_FC_G1
+   
+   pure function Calc_FC_HT(nq,X_fc_fc,A_a,B_eta_b,J_zeta_p_B_b)result(res)
+      integer,intent(in) :: nq
+      double complex,intent(in) :: X_fc_fc(nq)
+      
+      double precision,intent(in) :: A_a
+      double complex,intent(in) :: B_eta_b,J_zeta_p_B_b(nq)
+      
+      double complex :: res(nq)
+      res=A_a*(X_fc_fc*B_eta_b+J_zeta_p_B_b)
+   end function Calc_FC_HT
+   
+   
+   pure function Calc_FC_HT_Ray(X0,A_a,B_eta_b)result(res)
+      double complex,intent(in) :: X0
+      
+      double precision,intent(in) :: A_a
+      double complex,intent(in) :: B_eta_b
+      
+      double complex :: res
+      res=A_a*x0*B_eta_b
+   end function Calc_FC_HT_Ray
+   
+   pure function Calc_FC_HT_G1(nq,X_fc_fc,A_a,B_eta_b,g_zeta_B_b,g_eta,j_zeta_p_g,j_zeta_p_b_b)result(res)
+      integer,intent(in) :: nq
+      double precision,intent(in) :: A_a
+      double complex,intent(in) :: B_eta_b,X_fc_fc(nq),g_eta,J_zeta_p_g(nq)
+      double complex,intent(in) :: g_zeta_B_b,j_zeta_p_b_b(nq)
+      double complex :: res(nq)
+      res=A_a*(X_fc_fc*(g_eta*B_eta_b+g_zeta_B_b)+J_zeta_p_b_b*g_eta+J_zeta_p_g*b_eta_b)
+   end function Calc_FC_HT_G1
+   
+   pure function Calc_HT_FC(nq,X_fc_fc,B_b,A_eta_a,J_zeta_A_a)result(res)
+      integer,intent(in) :: nq
+      double complex,intent(in) :: X_fc_fc(nq)
+      
+      double precision,intent(in) :: B_b
+      double complex,intent(in) :: A_eta_a,J_zeta_A_a(nq)
+      
+      double complex :: res(nq)
+      res=B_b*(X_fc_fc*A_eta_a+J_zeta_A_a)
+   end function Calc_HT_FC
+   
+   pure function Calc_HT_FC_Ray(X0,B_b,A_eta_a)result(res)
+      double complex,intent(in) :: X0
+      
+      double precision,intent(in) :: B_b
+      double complex,intent(in) :: A_eta_a
+      
+      double complex :: res
+      res=B_b*x0*A_eta_a
+   end function Calc_HT_FC_Ray
+   
+   pure function Calc_HT_FC_G1(nq,X_fc_fc,B_b,A_eta_a,g_zeta_p_a_a,g_eta,j_zeta_p_g,j_zeta_a_a)result(res)
+      integer,intent(in) :: nq
+      double precision,intent(in) :: B_b
+      double complex,intent(in) :: A_eta_a,X_fc_fc(nq),g_eta,J_zeta_p_g(nq)
+      double complex,intent(in) :: g_zeta_p_a_a,j_zeta_a_a(nq)
+      double complex :: res(nq)
+      
+      res=B_b*X_fc_fc*(g_eta*a_eta_a+g_zeta_p_a_a)+J_zeta_a_a*g_eta+J_zeta_p_g*A_eta_a
+   end function Calc_HT_FC_G1
+   
+   pure function Calc_HT_HT(nq,X_fc_fc,A_eta_a,B_eta_b,A_a_zeta_p_B_b,j_zeta_A_a,j_zeta_p_B_b)result(res)
+      integer,intent(in) :: nq
+      double complex,intent(in) :: X_fc_fc(nq)
+      
+      double complex,intent(in) :: A_eta_a,B_eta_b,A_a_zeta_p_B_b,j_zeta_A_a(nq),j_zeta_p_B_b(nq)
+      
+      double complex :: res(nq)
+      res=(A_eta_a*B_eta_b+A_a_zeta_p_B_b)*X_fc_fc+j_zeta_p_B_b*A_eta_a+j_zeta_A_a*B_eta_b
+   end function Calc_HT_HT
+   
+   pure function Calc_HT_HT_Ray(x0,A_eta_a,B_eta_b,A_a_zeta_p_B_b)result(res)
+      double complex,intent(in) :: x0
+      
+      double complex,intent(in) :: A_eta_a,B_eta_b,A_a_zeta_p_B_b
+      
+      double complex :: res
+      res=x0*(a_eta_a*b_eta_b+A_a_zeta_p_B_b)
+   end function Calc_HT_HT_ray
+   
+   pure function Calc_HT_HT_G1(nq,X_fc_fc,A_eta_a,b_eta_b,A_a_zeta_p_B_b,g_zeta_p_a_a,g_zeta_b_b,g_eta,J_zeta_a,j_zeta_p_g,j_zeta_a_a,J_zeta_p_b_b)result(res)
+      integer,intent(in) :: nq
+      double complex,intent(in) :: A_eta_a,b_eta_b,X_fc_fc(nq),g_eta,J_zeta_p_g(nq),J_zeta_a(nq)
+      double complex,intent(in) :: g_zeta_p_a_a,g_zeta_b_b,j_zeta_a_a(nq),J_zeta_p_b_b(nq),A_a_zeta_p_B_b
+      double complex :: res(nq)
+      
+      res=X_fc_fc*(G_eta*A_eta_a*B_eta_b+A_eta_a*g_zeta_b_b+b_eta_b*G_zeta_p_a_a+G_eta*A_a_zeta_p_B_b)+ &
+         g_eta*(J_zeta_a*b_eta_b+J_zeta_p_b_b*A_eta_a)+J_zeta_p_g*(a_eta_a*b_eta_b+A_a_zeta_p_B_b)+ &
+         J_zeta_a_a*g_zeta_b_b+J_zeta_p_b_b*g_zeta_p_a_a
+   end function Calc_HT_HT_G1
+   
+   pure function Calc_FC_HT2(nq,X_fc_fc,A_a,eta_b2_eta,b2_zeta_f,j_zeta_p_b2_eta)result(res)
+      integer,intent(in) :: nq
+      double complex,intent(in) :: X_fc_fc(nq)
+      double precision,intent(in) :: A_a
+      double complex,intent(in) :: eta_b2_eta,b2_zeta_f,j_zeta_p_b2_eta(nq)
+      
+      double complex :: res(nq)
+      res=A_a*(X_fc_fc*(eta_b2_eta+b2_zeta_f)+2*j_zeta_p_b2_eta)
+   end function Calc_FC_HT2
+   
+   pure function Calc_HT2_FC(nq,X_fc_fc,B_b,eta_a2_eta,a2_zeta_f,j_zeta_a2_eta)result(res)
+      integer,intent(in) :: nq
+      double complex,intent(in) :: X_fc_fc(nq)
+      double precision,intent(in) :: B_b
+      double complex,intent(in) :: eta_a2_eta,a2_zeta_f,j_zeta_a2_eta(nq)
+      
+      double complex :: res(nq)
+      res=B_b*(X_fc_fc*(eta_a2_eta+a2_zeta_f)+2*j_zeta_a2_eta)
+   end function Calc_HT2_FC
+   
+   pure function Calc_HT_HT2(nq,X_fc_fc,eta_A,eta_b2_eta,b2_zeta_f,a_zeta_p_b2_eta,j_zeta_a,j_zeta_p_b2_eta,j_zeta_p_b2_zeta_p_a)result(res)
+      integer,intent(in) :: nq
+      double complex,intent(in) :: X_fc_fc(nq)
+      
+      double complex,intent(in) :: eta_A,eta_b2_eta,b2_zeta_f,a_zeta_p_b2_eta,j_zeta_a(nq),j_zeta_p_b2_eta(nq),j_zeta_p_b2_zeta_p_a(nq)
+      
+      double complex :: res(nq)
+      res=X_fc_fc*(eta_a*(eta_b2_eta+b2_zeta_f)+2*a_zeta_p_b2_eta)+j_zeta_a*(eta_b2_eta+b2_zeta_f)+2*eta_a*j_zeta_p_b2_eta+2*J_zeta_p_b2_zeta_p_a
+   end function Calc_HT_HT2
+   
+   pure function Calc_HT2_HT(nq,X_fc_fc,eta_b,eta_a2_eta,a2_zeta_f,b_zeta_p_a2_eta,j_zeta_p_b,j_zeta_a2_eta,j_zeta_a2_zeta_p_b)result(res)
+      integer,intent(in) :: nq
+      double complex,intent(in) :: X_fc_fc(nq)
+      
+      double complex,intent(in) :: eta_b,eta_a2_eta,a2_zeta_f,b_zeta_p_a2_eta,j_zeta_p_b(nq),j_zeta_a2_eta(nq),j_zeta_a2_zeta_p_b(nq)
+      
+      double complex :: res(nq)
+      res=X_fc_fc*(eta_b*(eta_a2_eta+a2_zeta_f)+2*b_zeta_p_a2_eta)+j_zeta_p_b*(eta_a2_eta+a2_zeta_f)+2*eta_b*j_zeta_a2_eta+2*j_zeta_a2_zeta_p_b
+   end function Calc_HT2_HT
+   
+   pure function Calc_HT2_HT2(nq,X_fc_fc,j_zeta_a2_eta,b2_zeta_f,eta_b2_eta,j_zeta_a2_zeta_p_b2_eta,j_zeta_p_b2_eta,a2_zeta_f,eta_a2_eta,j_zeta_p_b2_zeta_p_a2_eta,eta_a2_zeta_p_b2_eta,zeta_p_a2_zeta_p_b2_f)result(res)
+      integer,intent(in) :: nq
+      double complex,intent(in) :: X_fc_fc(nq)
+      
+      double complex,intent(in) :: j_zeta_a2_eta(nq),b2_zeta_f,eta_b2_eta,j_zeta_a2_zeta_p_b2_eta(nq),j_zeta_p_b2_eta(nq),a2_zeta_f,eta_a2_eta,j_zeta_p_b2_zeta_p_a2_eta(nq),eta_a2_zeta_p_b2_eta,zeta_p_a2_zeta_p_b2_f
+      
+      double complex :: res(nq)
+      res=2*j_zeta_a2_eta*(b2_zeta_f+eta_b2_eta)+4*j_zeta_a2_zeta_p_b2_eta+2*j_zeta_p_b2_eta*(a2_zeta_f+eta_a2_eta)+4*j_zeta_p_b2_zeta_p_a2_eta &
+       +X_fc_fc*((eta_a2_eta+a2_zeta_f)*(eta_b2_eta+b2_zeta_f)+4*eta_a2_zeta_p_b2_eta+2*zeta_p_a2_zeta_p_b2_f)
+   end function Calc_HT2_HT2
+   
+end module RROA_TD_corrf
+
 
 module RROA_TD
    use constants
@@ -3006,6 +3291,7 @@ module RROA_TD
    use FCOV_storage
    use FFT
    use strings
+   use RROA_TD_corrf
 #ifdef _OPENACC
    use openacc
 #endif
@@ -3087,6 +3373,54 @@ module RROA_TD
       double complex,allocatable :: j_zeta_a2_zeta_p_b2_eta(:,:,:,:),j_zeta_p_b2_zeta_p_a2_eta(:,:,:,:)
       double complex :: eta_a2_zeta_p_b2_eta(3,3,3)
    end type TD_SplitP_Mats_T2T1
+   
+   !AI GENERATED
+   type TD_Workspace
+      ! 2D generic work matrix
+      double complex, allocatable :: tmp(:,:)
+      
+      ! 1D Arrays (nq)
+      double complex, allocatable :: zeta_g(:), zeta_p_g(:)
+      double complex, allocatable :: f_eta(:), zeta_f_eta(:), zeta_p_f_eta(:)
+      
+      ! 2D Arrays (nq, 3)
+      double complex, allocatable :: j_zeta_dip(:,:), j_zeta_p_dip(:,:)
+      double complex, allocatable :: j_zeta_mag(:,:), j_zeta_p_mag(:,:)
+      double complex, allocatable :: zeta_p_dip(:,:), zeta_p_mag(:,:)
+      
+      double complex, allocatable :: d2_eta(:,:), m2_eta(:,:)
+      double complex, allocatable :: eta_d2(:,:), eta_m2(:,:)
+      double complex, allocatable :: dip_zeta_p(:,:), mag_zeta_p(:,:)
+      
+      double complex, allocatable :: j_zeta_d2_eta(:,:), j_zeta_p_d2_eta(:,:)
+      double complex, allocatable :: j_zeta_m2_eta(:,:), j_zeta_p_m2_eta(:,:)
+      
+      double complex, allocatable :: zeta_dip(:,:), zeta_mag(:,:)
+      double complex, allocatable :: f_zeta_dip(:,:), f_zeta_mag(:,:)
+      double complex, allocatable :: f_zeta_p_dip(:,:), f_zeta_p_mag(:,:)
+      double complex, allocatable :: j_zeta_p_f_zeta_dip(:,:), j_zeta_p_f_zeta_p_dip(:,:)
+      double complex, allocatable :: j_zeta_p_f_zeta_mag(:,:), j_zeta_p_f_zeta_p_mag(:,:)
+
+      ! 3D Arrays (nq, 3, 3) or (nq, nq, 3)
+      double complex, allocatable :: j_zeta_quad(:,:,:), j_zeta_p_quad(:,:,:)
+      double complex, allocatable :: zeta_p_quad(:,:,:)
+      
+      double complex, allocatable :: q2_eta(:,:,:), eta_q2(:,:,:)
+      double complex, allocatable :: quad_zeta_p(:,:,:)
+      double complex, allocatable :: j_zeta_q2_eta(:,:,:), j_zeta_p_q2_eta(:,:,:)
+      
+      double complex, allocatable :: zeta_quad(:,:,:)
+      double complex, allocatable :: f_zeta_quad(:,:,:), f_zeta_p_quad(:,:,:)
+      double complex, allocatable :: j_zeta_p_f_zeta_quad(:,:,:), j_zeta_p_f_zeta_p_quad(:,:,:)
+      
+      double complex, allocatable :: j_zeta_d2(:,:,:), j_zeta_p_d2(:,:,:)
+      double complex, allocatable :: j_zeta_m2(:,:,:), j_zeta_p_m2(:,:,:)
+      double complex, allocatable :: zeta_p_d2(:,:,:), zeta_p_m2(:,:,:)
+
+      ! 4D Arrays (nq, nq, 3, 3)
+      double complex, allocatable :: j_zeta_q2(:,:,:,:), j_zeta_p_q2(:,:,:,:)
+      double complex, allocatable :: zeta_p_q2(:,:,:,:)
+   end type TD_Workspace
    
    contains
    
@@ -3809,117 +4143,6 @@ module RROA_TD
       deallocate(c_g)
    end subroutine Make_Corrf_SplitPropagator
    
-   pure function Calc_FC_HT(nq,X_fc_fc,A_a,B_eta_b,J_zeta_p_B_b)result(res)
-      integer,intent(in) :: nq
-      double complex,intent(in) :: X_fc_fc(nq)
-      
-      double precision,intent(in) :: A_a
-      double complex,intent(in) :: B_eta_b,J_zeta_p_B_b(nq)
-      
-      double complex :: res(nq)
-      res=A_a*(X_fc_fc*B_eta_b+J_zeta_p_B_b)
-   end function Calc_FC_HT
-   
-   pure function Calc_FC_HT_Ray(X0,A_a,B_eta_b)result(res)
-      double complex,intent(in) :: X0
-      
-      double precision,intent(in) :: A_a
-      double complex,intent(in) :: B_eta_b
-      
-      double complex :: res
-      res=A_a*x0*B_eta_b
-   end function Calc_FC_HT_Ray
-   
-   pure function Calc_HT_FC(nq,X_fc_fc,B_b,A_eta_a,J_zeta_A_a)result(res)
-      integer,intent(in) :: nq
-      double complex,intent(in) :: X_fc_fc(nq)
-      
-      double precision,intent(in) :: B_b
-      double complex,intent(in) :: A_eta_a,J_zeta_A_a(nq)
-      
-      double complex :: res(nq)
-      res=B_b*(X_fc_fc*A_eta_a+J_zeta_A_a)
-   end function Calc_HT_FC
-   
-   pure function Calc_HT_FC_Ray(X0,B_b,A_eta_a)result(res)
-      double complex,intent(in) :: X0
-      
-      double precision,intent(in) :: B_b
-      double complex,intent(in) :: A_eta_a
-      
-      double complex :: res
-      res=B_b*x0*A_eta_a
-   end function Calc_HT_FC_Ray
-   
-   pure function Calc_HT_HT(nq,X_fc_fc,A_eta_a,B_eta_b,A_a_zeta_p_B_b,j_zeta_A_a,j_zeta_p_B_b)result(res)
-      integer,intent(in) :: nq
-      double complex,intent(in) :: X_fc_fc(nq)
-      
-      double complex,intent(in) :: A_eta_a,B_eta_b,A_a_zeta_p_B_b,j_zeta_A_a(nq),j_zeta_p_B_b(nq)
-      
-      double complex :: res(nq)
-      res=(A_eta_a*B_eta_b+A_a_zeta_p_B_b)*X_fc_fc+j_zeta_p_B_b*A_eta_a+j_zeta_A_a*B_eta_b
-   end function Calc_HT_HT
-   
-   pure function Calc_HT_HT_Ray(x0,A_eta_a,B_eta_b,A_a_zeta_p_B_b)result(res)
-      double complex,intent(in) :: x0
-      
-      double complex,intent(in) :: A_eta_a,B_eta_b,A_a_zeta_p_B_b
-      
-      double complex :: res
-      res=x0*(a_eta_a*b_eta_b+A_a_zeta_p_B_b)
-   end function Calc_HT_HT_ray
-   
-   pure function Calc_FC_HT2(nq,X_fc_fc,A_a,eta_b2_eta,b2_zeta_f,j_zeta_p_b2_eta)result(res)
-      integer,intent(in) :: nq
-      double complex,intent(in) :: X_fc_fc(nq)
-      double precision,intent(in) :: A_a
-      double complex,intent(in) :: eta_b2_eta,b2_zeta_f,j_zeta_p_b2_eta(nq)
-      
-      double complex :: res(nq)
-      res=A_a*(X_fc_fc*(eta_b2_eta+b2_zeta_f)+2*j_zeta_p_b2_eta)
-   end function Calc_FC_HT2
-   
-   pure function Calc_HT2_FC(nq,X_fc_fc,B_b,eta_a2_eta,a2_zeta_f,j_zeta_a2_eta)result(res)
-      integer,intent(in) :: nq
-      double complex,intent(in) :: X_fc_fc(nq)
-      double precision,intent(in) :: B_b
-      double complex,intent(in) :: eta_a2_eta,a2_zeta_f,j_zeta_a2_eta(nq)
-      
-      double complex :: res(nq)
-      res=B_b*(X_fc_fc*(eta_a2_eta+a2_zeta_f)+2*j_zeta_a2_eta)
-   end function Calc_HT2_FC
-   
-   pure function Calc_HT_HT2(nq,X_fc_fc,eta_A,eta_b2_eta,b2_zeta_f,a_zeta_p_b2_eta,j_zeta_a,j_zeta_p_b2_eta,j_zeta_p_b2_zeta_p_a)result(res)
-      integer,intent(in) :: nq
-      double complex,intent(in) :: X_fc_fc(nq)
-      
-      double complex,intent(in) :: eta_A,eta_b2_eta,b2_zeta_f,a_zeta_p_b2_eta,j_zeta_a(nq),j_zeta_p_b2_eta(nq),j_zeta_p_b2_zeta_p_a(nq)
-      
-      double complex :: res(nq)
-      res=X_fc_fc*(eta_a*(eta_b2_eta+b2_zeta_f)+2*a_zeta_p_b2_eta)+j_zeta_a*(eta_b2_eta+b2_zeta_f)+2*eta_a*j_zeta_p_b2_eta+2*J_zeta_p_b2_zeta_p_a
-   end function Calc_HT_HT2
-   
-   pure function Calc_HT2_HT(nq,X_fc_fc,eta_b,eta_a2_eta,a2_zeta_f,b_zeta_p_a2_eta,j_zeta_p_b,j_zeta_a2_eta,j_zeta_a2_zeta_p_b)result(res)
-      integer,intent(in) :: nq
-      double complex,intent(in) :: X_fc_fc(nq)
-      
-      double complex,intent(in) :: eta_b,eta_a2_eta,a2_zeta_f,b_zeta_p_a2_eta,j_zeta_p_b(nq),j_zeta_a2_eta(nq),j_zeta_a2_zeta_p_b(nq)
-      
-      double complex :: res(nq)
-      res=X_fc_fc*(eta_b*(eta_a2_eta+a2_zeta_f)+2*b_zeta_p_a2_eta)+j_zeta_p_b*(eta_a2_eta+a2_zeta_f)+2*eta_b*j_zeta_a2_eta+2*j_zeta_a2_zeta_p_b
-   end function Calc_HT2_HT
-   
-   pure function Calc_HT2_HT2(nq,X_fc_fc,j_zeta_a2_eta,b2_zeta_f,eta_b2_eta,j_zeta_a2_zeta_p_b2_eta,j_zeta_p_b2_eta,a2_zeta_f,eta_a2_eta,j_zeta_p_b2_zeta_p_a2_eta,eta_a2_zeta_p_b2_eta,zeta_p_a2_zeta_p_b2_f)result(res)
-      integer,intent(in) :: nq
-      double complex,intent(in) :: X_fc_fc(nq)
-      
-      double complex,intent(in) :: j_zeta_a2_eta(nq),b2_zeta_f,eta_b2_eta,j_zeta_a2_zeta_p_b2_eta(nq),j_zeta_p_b2_eta(nq),a2_zeta_f,eta_a2_eta,j_zeta_p_b2_zeta_p_a2_eta(nq),eta_a2_zeta_p_b2_eta,zeta_p_a2_zeta_p_b2_f
-      
-      double complex :: res(nq)
-      res=2*j_zeta_a2_eta*(b2_zeta_f+eta_b2_eta)+4*j_zeta_a2_zeta_p_b2_eta+2*j_zeta_p_b2_eta*(a2_zeta_f+eta_a2_eta)+4*j_zeta_p_b2_zeta_p_a2_eta &
-       +X_fc_fc*((eta_a2_eta+a2_zeta_f)*(eta_b2_eta+b2_zeta_f)+4*eta_a2_zeta_p_b2_eta+2*zeta_p_a2_zeta_p_b2_f)
-   end function Calc_HT2_HT2
    
    pure subroutine AllocateMats_T1T1(nq,mats,ht,ht2)
       integer,intent(in) :: nq
@@ -3997,16 +4220,16 @@ module RROA_TD
    end subroutine DeAllocateMats_T2T1
    
    !Workhorse
-   subroutine MakeMatrices(ht,ht2,ray,nq,J,eta,zeta,zeta_p,tmss, &
-      m_ap,m_G,m_Gc,m_A,m_Ac,j_zeta,j_zeta_p)
-      integer,intent(in) :: nq
+   subroutine MakeMatrices(ht,ht2,ray,den_tay,nq,J,eta,zeta,zeta_p,tmss, &
+      m_ap,m_G,m_Gc,m_A,m_Ac,j_zeta,j_zeta_p,grad,ff)
+      integer,intent(in) :: nq,den_tay !DENominator TAYlor order, 0 - no Taylor expansion/zeroth order term, 1 - single gradient term, 2 - forcefield and double gradient term
       type(TMS),intent(in) :: tmss
       logical,intent(in) :: ht2,ht,ray
       double complex,intent(inout) :: j_zeta(:,:),j_zeta_p(:,:) !passed in work arrays
       type(TD_SplitP_Mats_T1T1),intent(inout) :: m_ap,m_G,m_Gc
       type(TD_SplitP_Mats_T1T2),intent(inout) :: m_A
       type(TD_SplitP_Mats_T2T1),intent(inout) :: m_Ac
-      double precision,intent(in) :: J(nq,nq)
+      double precision,intent(in) :: J(nq,nq),grad(:,:),ff(:,:)
       double complex,intent(in) :: eta(nq),zeta(nq,nq),zeta_p(nq,nq)
       double complex :: dip_eta(3),mag_eta(3),quad_eta(3,3)
       double complex :: j_zeta_dip(nq,3),j_zeta_p_dip(nq,3)
@@ -4015,7 +4238,7 @@ module RROA_TD
       double complex :: zeta_p_dip(nq,3),zeta_p_mag(nq,3),zeta_p_quad(nq,3,3)
       
       double complex :: tmp(nq,nq)
-      !HT2 contribution
+      !HT2 contribution, this might give segfault/stack overflow
       double complex :: d2_eta(nq,3),m2_eta(nq,3),q2_eta(nq,3,3)
       double complex :: eta_d2(nq,3),eta_m2(nq,3),eta_q2(nq,3,3)
       double complex :: eta_d2_eta(3),eta_m2_eta(3),eta_q2_eta(3,3)
@@ -4241,6 +4464,96 @@ module RROA_TD
          end do
       end do
    end subroutine MakeMatrices
+   
+   !AI GENERATED BELOW
+
+   subroutine Alloc_Workspace(ws, nq)
+      type(TD_Workspace), intent(inout) :: ws
+      integer, intent(in) :: nq
+      
+      allocate(ws%tmp(nq,nq))
+      
+      allocate(ws%zeta_g(nq), ws%zeta_p_g(nq))
+      allocate(ws%f_eta(nq), ws%zeta_f_eta(nq), ws%zeta_p_f_eta(nq))
+      
+      allocate(ws%j_zeta_dip(nq,3), ws%j_zeta_p_dip(nq,3))
+      allocate(ws%j_zeta_mag(nq,3), ws%j_zeta_p_mag(nq,3))
+      allocate(ws%zeta_p_dip(nq,3), ws%zeta_p_mag(nq,3))
+      
+      allocate(ws%d2_eta(nq,3), ws%m2_eta(nq,3))
+      allocate(ws%eta_d2(nq,3), ws%eta_m2(nq,3))
+      allocate(ws%dip_zeta_p(nq,3), ws%mag_zeta_p(nq,3))
+      
+      allocate(ws%j_zeta_d2_eta(nq,3), ws%j_zeta_p_d2_eta(nq,3))
+      allocate(ws%j_zeta_m2_eta(nq,3), ws%j_zeta_p_m2_eta(nq,3))
+      
+      allocate(ws%zeta_dip(nq,3), ws%zeta_mag(nq,3))
+      allocate(ws%f_zeta_dip(nq,3), ws%f_zeta_mag(nq,3))
+      allocate(ws%f_zeta_p_dip(nq,3), ws%f_zeta_p_mag(nq,3))
+      allocate(ws%j_zeta_p_f_zeta_dip(nq,3), ws%j_zeta_p_f_zeta_p_dip(nq,3))
+      allocate(ws%j_zeta_p_f_zeta_mag(nq,3), ws%j_zeta_p_f_zeta_p_mag(nq,3))
+      
+      allocate(ws%j_zeta_quad(nq,3,3), ws%j_zeta_p_quad(nq,3,3))
+      allocate(ws%zeta_p_quad(nq,3,3))
+      allocate(ws%q2_eta(nq,3,3), ws%eta_q2(nq,3,3))
+      allocate(ws%quad_zeta_p(nq,3,3))
+      allocate(ws%j_zeta_q2_eta(nq,3,3), ws%j_zeta_p_q2_eta(nq,3,3))
+      
+      allocate(ws%zeta_quad(nq,3,3))
+      allocate(ws%f_zeta_quad(nq,3,3), ws%f_zeta_p_quad(nq,3,3))
+      allocate(ws%j_zeta_p_f_zeta_quad(nq,3,3), ws%j_zeta_p_f_zeta_p_quad(nq,3,3))
+      
+      allocate(ws%j_zeta_d2(nq,nq,3), ws%j_zeta_p_d2(nq,nq,3))
+      allocate(ws%j_zeta_m2(nq,nq,3), ws%j_zeta_p_m2(nq,nq,3))
+      allocate(ws%zeta_p_d2(nq,nq,3), ws%zeta_p_m2(nq,nq,3))
+      
+      allocate(ws%j_zeta_q2(nq,nq,3,3), ws%j_zeta_p_q2(nq,nq,3,3))
+      allocate(ws%zeta_p_q2(nq,nq,3,3))
+   end subroutine Alloc_Workspace
+
+   subroutine Dealloc_Workspace(ws)
+      type(TD_Workspace), intent(inout) :: ws
+      
+      deallocate(ws%tmp)
+      
+      deallocate(ws%zeta_g, ws%zeta_p_g)
+      deallocate(ws%f_eta, ws%zeta_f_eta, ws%zeta_p_f_eta)
+      
+      deallocate(ws%j_zeta_dip, ws%j_zeta_p_dip)
+      deallocate(ws%j_zeta_mag, ws%j_zeta_p_mag)
+      deallocate(ws%zeta_p_dip, ws%zeta_p_mag)
+      
+      deallocate(ws%d2_eta, ws%m2_eta)
+      deallocate(ws%eta_d2, ws%eta_m2)
+      deallocate(ws%dip_zeta_p, ws%mag_zeta_p)
+      
+      deallocate(ws%j_zeta_d2_eta, ws%j_zeta_p_d2_eta)
+      deallocate(ws%j_zeta_m2_eta, ws%j_zeta_p_m2_eta)
+      
+      deallocate(ws%zeta_dip, ws%zeta_mag)
+      deallocate(ws%f_zeta_dip, ws%f_zeta_mag)
+      deallocate(ws%f_zeta_p_dip, ws%f_zeta_p_mag)
+      deallocate(ws%j_zeta_p_f_zeta_dip, ws%j_zeta_p_f_zeta_p_dip)
+      deallocate(ws%j_zeta_p_f_zeta_mag, ws%j_zeta_p_f_zeta_p_mag)
+      
+      deallocate(ws%j_zeta_quad, ws%j_zeta_p_quad)
+      deallocate(ws%zeta_p_quad)
+      deallocate(ws%q2_eta, ws%eta_q2)
+      deallocate(ws%quad_zeta_p)
+      deallocate(ws%j_zeta_q2_eta, ws%j_zeta_p_q2_eta)
+      
+      deallocate(ws%zeta_quad)
+      deallocate(ws%f_zeta_quad, ws%f_zeta_p_quad)
+      deallocate(ws%j_zeta_p_f_zeta_quad, ws%j_zeta_p_f_zeta_p_quad)
+      
+      deallocate(ws%j_zeta_d2, ws%j_zeta_p_d2)
+      deallocate(ws%j_zeta_m2, ws%j_zeta_p_m2)
+      deallocate(ws%zeta_p_d2, ws%zeta_p_m2)
+      
+      deallocate(ws%j_zeta_q2, ws%j_zeta_p_q2)
+      deallocate(ws%zeta_p_q2)
+   end subroutine Dealloc_Workspace   
+   !AI GENERATED ABOVE
    
    subroutine dz_frob_sym_twice(nq,a1,a2,b,res1,res2)
       integer,intent(in) :: nq
@@ -6251,6 +6564,7 @@ module RROA_TD
    end function Make_x0_matmul
    
 end module RROA_TD
+
 
 !Handles the vibronic RROA calculation, mostly the time-independent part
 module RROA
