@@ -17,7 +17,7 @@ program addpol
    double precision signs(Polars_max)
    double complex :: sum_ap(3,3,3),sum_G(3,3,3),sum_A(3,3,3,3)
    double complex :: sum_G_an(3,3,3),sum_A_an(3,3,3,3)
-   double precision :: sum_sq
+   double precision :: sum_sq,gamma
    logical do_conjg(Polars_max),mult_i(Polars_max)
    logical :: output_qttt=.false.,output_ttt=.false.
    logical :: output_polars_c=.false.,output_polars_q=.false.
@@ -55,7 +55,7 @@ program addpol
       write(output_unit,*)'Setting polarizabilities to 0 in files'
       call GET_COMMAND_ARGUMENT(2,s80)
       read(s80,*)endd
-      write(output_unit,*)'Starting with atom: ',endd
+      write(output_unit,*)'Zeroing from atom >=',endd+1
       endd=endd*3
       
       do i = 3,argc
@@ -73,6 +73,27 @@ program addpol
          call writepol(polars_cur,n3,ft1,wexc)
          deallocate(polars_cur)
       end do
+      
+      return
+   elseif(index(s80_l,'fixorig')>0)then
+      write(output_unit,*)'Moving G and A tensors to origin.'
+      
+      
+      call GET_COMMAND_ARGUMENT(2,s80)
+      read(s80,*)gamma
+      gamma=gamma*cm_2_au
+      call GET_COMMAND_ARGUMENT(3,filepol)
+      polars_cur=readPol(filepol,ft1,wexc,.false.)
+      if(TR(ft1)/='FILE.TTT')then
+         write(output_unit,*)'Fixing orign only implemented for FILE.TTT'
+         stop 66
+      end if
+      n3=size(polars_cur,dim=1)
+      write(output_unit,*)'WEXC(a.u.) = ',wexc
+      write(output_unit,*)'GAMMA(a.u.) = ',gamma
+      call fixpol(polars_cur,n3,gamma,wexc)
+      call writepol(polars_cur,n3,ft1,wexc)
+      deallocate(polars_cur)
       
       return
    end if
@@ -201,6 +222,39 @@ program addpol
    
    deallocate(Polars,polarsres)
    contains
+   
+   subroutine fixpol(pols,n3,gamma,wexc)
+      integer n3,nq,iz
+      integer i,a,b,c
+      double precision gamma,wexc,com(3),ap(3,3)
+      double complex bufc,bufd
+      type(Polar) pols(n3)
+      integer,allocatable :: z(:)
+      double precision,allocatable :: smat(:,:),r(:),wg(:)
+      
+      call readsi(n3,smat,wg,nq,'F.INP',z,r,.true.,iz)
+      r=r/bohrr
+      com=CalcCom(n3/3,r,z)
+      !com=-com
+      !print *,com
+      do i = 1,n3
+         ap=pols(i)%ap
+         do a = 1,3
+            do b = 1,3
+               bufc=0d0
+               do c = 1,3
+                  bufd=0d0
+                  do d = 1,3
+                     bufc=bufc+LC(b,c,d)*com(c)*ap(a,d)
+                     bufd=bufd+com(d)*ap(a,d)
+                  end do
+                  pols(i)%A(a,b,c)=pols(i)%A(a,b,c)+3d0/2d0*com(b)*ap(a,c)+3d0/2d0*com(c)*ap(a,b)-KD(b,c)*bufd
+               end do
+               pols(i)%G(a,b)=pols(i)%G(a,b)+iu*(wexc+iu*gamma)/2d0*bufc
+            end do
+         end do
+      end do
+   end subroutine fixpol
    
    subroutine ZeroPol(pol)
       integer a,b,c

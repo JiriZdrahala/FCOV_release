@@ -41,6 +41,59 @@ module util
    
    contains
    
+   function CalcCOM(natoms, coords, atnums) result(com)
+       ! Dummy arguments
+       integer, intent(in) :: natoms
+       double precision, intent(in) :: coords(3 * natoms)
+       integer, intent(in) :: atnums(natoms)
+
+       ! Return value
+       double precision :: com(3)
+
+       ! Local variables
+       integer :: i, z, idx
+       double precision :: mass, total_mass
+
+       com = 0.0d0
+       total_mass = 0.0d0
+
+       do i = 1, natoms
+           z = atnums(i)
+           mass = amas(z)
+           total_mass = total_mass + mass
+
+           ! Base index for atom i assuming interleaved layout: [x1, y1, z1, x2, y2, z2, ...]
+           idx = 3 * (i - 1)
+           com(1) = com(1) + mass * coords(idx + 1)
+           com(2) = com(2) + mass * coords(idx + 2)
+           com(3) = com(3) + mass * coords(idx + 3)
+       end do
+
+       if (total_mass > 0.0d0) then
+           com = com / total_mass
+       end if
+
+   end function CalcCOM   
+   
+   
+   !ignores connectivity
+   subroutine ReadFileX(unitt,r,z)
+      integer unitt,nat,i
+      character(50) s50
+      integer,allocatable :: z(:)
+      double precision, allocatable :: r(:,:)
+      
+      open(unitt,file='FILE.X',status='old')
+      read(unitt,*)
+      read(unitt,*)nat
+      allocate(r(3,nat),z(nat))
+      do i = 1,nat
+         read(unitt,'(A50)')s50
+         read(s50,*)z(i),r(:,i)
+      end do
+      close(unitt)
+   end subroutine ReadFileX
+   
    function KD(a,b)result(res)
       integer a,b,res
       
