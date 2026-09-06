@@ -1,7 +1,7 @@
 # Programs for calculation of resonance Raman and ROA
 
 ## Vibronic calculation
-The vibronic calculation is done via the single-state approach. Time dependent (TD) approach is the main focus now, time independent is only kept for reference and validation (TI). That means the electronic states and their vibrations are treated one at a time and negligible nonadiabatic coupling is present in the system.\
+The vibronic calculation is done via the single-state approach. That means the electronic states and their vibrations are treated one at a time and negligible nonadiabatic coupling is present in the system. Time dependent (TD) approach is the main focus now, time independent (TI) is only kept for reference and validation. \
 2nd derivatives of transition dipole/quadrupole moments can be included in the calculation, although they need to be calculated numerically from 1st derivatives so far.
 In the TD approach, for a molecule with 93 vibrational modes, 2^16 time grid points, on 8 CPU threads the runtime of the calculation of the cross-correlation function is:\
 **1st derivatives**: 1 minute\
