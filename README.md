@@ -5,7 +5,9 @@ The vibronic calculation is done via the single-state approach. That means the e
 2nd derivatives of transition dipole/quadrupole moments can be included in the calculation, although they need to be calculated numerically from 1st derivatives so far.
 In the TD approach, for a molecule with 93 vibrational modes, 2^16 time grid points, on 8 CPU threads the runtime of the calculation of the cross-correlation function is:\
 **1st derivatives**: 1 minute\
-**2nd derivatives**: 5 minutes, 38 seconds (not including the calculation of the derivatives themselves)
+**2nd derivatives**: 5 minutes, 38 seconds (not including the calculation of the derivatives themselves)\
+\
+In the .docx files there lies the derivation of the time-dependent approach. It is methodology heavy and unpolished, but after reading it (and with the help of LLM) you should be able to replicate or expand the TD approach. If you see any errors/oversights, please message me or post an issue.
 
 ## Installation
 Go to your favourite programs folder and call the script "compile.sh o". If you want debugging, compile with "compile.sh og"
